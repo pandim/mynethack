@@ -15,16 +15,19 @@ import (
 // Если в инвентаре уже есть такой предмет — увеличивает его Count.
 // Иначе добавляет новый предмет с Count=1.
 //
-// Работает для всех типов предметов, кроме золота (которое сразу в кошелёк).
-// Мечи и щиты тоже складываются в стопки (по имени и типу).
+// 🆕 ЭТАП 1: Использует метод IsStackable из item.go.
+// Реликвии и Амулет НЕ стакаются (каждый экземпляр уникален).
+// Все остальные предметы (зелья, еда, свитки, ключи, оружие, броня) стакаются.
 //
-// 🆕 Реликвии и Амулет НЕ стакаются (см. IsStackable в item.go).
+// Работает для всех типов предметов, кроме золота (которое сразу в кошелёк).
+// Золото обрабатывается отдельно в pickupItem.
 func (g *Game) addToInventoryWithStack(item *Item) {
 	if item == nil || g.player == nil {
 		return
 	}
 
-	// 🆕 Реликвии и Амулет не стакаются — добавляем как отдельный предмет
+	// 🆕 ЭТАП 1: Реликвии и Амулет не стакаются — добавляем как отдельный предмет
+	// Метод IsStackable определён в item.go
 	if item.IsStackable() {
 		// Для стакающихся предметов проверяем, есть ли уже такой в инвентаре
 		for _, inv := range g.player.Inventory {
@@ -86,13 +89,15 @@ func (g *Game) checkPlayerDeath() bool {
 
 // processTurn — обрабатывает один ход игры (движение игрока + ходы монстров)
 //
-// 🆕 ОСОБЫЕ СВОЙСТВА БОССОВ:
-// Для каждого живого босса вызывается processBossAbilities, которая
-// активирует регенерацию или призыв миньонов.
-//
 // 🆕 ЭТАП 3: АГРЕССИВНЫЕ МОНСТРЫ С АМУЛЕТОМ:
 // Когда игрок несёт Амулет Бездны, монстры видят дальше (10 клеток вместо 6).
 // Это передаётся в AIUpdate через параметр `aggressive`.
+// Поле HasAmulet определено в player.go.
+// Константа AggressiveVisionRangeSq определена в monster.go.
+//
+// ОСОБЫЕ СВОЙСТВА БОССОВ:
+// Для каждого живого босса вызывается processBossAbilities, которая
+// активирует регенерацию или призыв миньонов.
 func (g *Game) processTurn(dx, dy int) {
 	if g.level == nil || g.player == nil {
 		return
@@ -137,6 +142,7 @@ func (g *Game) processTurn(dx, dy int) {
 
 	// Фаза 2: ходы монстров (идём с конца, чтобы можно было удалять мёртвых)
 	// 🆕 ЭТАП 3: передаём g.player.HasAmulet для агрессивности монстров
+	// Поле HasAmulet определено в player.go
 	for i := len(g.level.Monsters) - 1; i >= 0; i-- {
 		if g.checkPlayerDeath() {
 			break
@@ -152,7 +158,7 @@ func (g *Game) processTurn(dx, dy int) {
 			continue
 		}
 
-		// 🆕 Особые свойства боссов (регенерация, призыв миньонов)
+		// Особые свойства боссов (регенерация, призыв миньонов)
 		// Вызываются каждый ход для каждого живого босса
 		if m.IsBoss {
 			g.processBossAbilities(m)
@@ -173,6 +179,7 @@ func (g *Game) processTurn(dx, dy int) {
 
 		// Иначе монстр перемещается по своему ИИ
 		// 🆕 ЭТАП 3: передаём g.player.HasAmulet для агрессивности
+		// Сигнатура AIUpdate изменена в monster.go: добавлен параметр aggressive
 		m.AIUpdate(g.player.X, g.player.Y, g.level, g.player.HasAmulet)
 	}
 
@@ -227,6 +234,8 @@ func (g *Game) processBossAbilities(boss *Monster) {
 // summonMinion — призывает миньона рядом с боссом.
 // Миньон — случайный обычный монстр с характеристиками текущего уровня.
 // Вызывается из processBossAbilities для боссов со способностью призыва.
+//
+// Функция FindFreeSpotNear определена в level_boss.go.
 func (g *Game) summonMinion(boss *Monster) {
 	if boss == nil || g.level == nil {
 		return
@@ -275,20 +284,19 @@ func (g *Game) summonMinion(boss *Monster) {
 }
 
 // =============================================================================
-// ПОДБОР ПРЕДМЕТОВ
+// 🆕 ЭТАП 3: ПОДБОР АМУЛЕТА БЕЗДНЫ
 // =============================================================================
 //
 // pickupItem — подбирает предмет с пола.
 //
 // МЕХАНИКА СТОПОК:
 //   - Золото сразу добавляется в кошелёк (не занимает место в инвентаре)
-//   - ВСЕ остальные предметы (зелья, еда, оружие, броня) складываются в стопки:
-//     если в инвентаре уже есть такой предмет — увеличиваем его Count,
-//     иначе добавляем новый предмет с Count=1
+//   - 🆕 ЭТАП 3: Амулет Бездны устанавливает поле HasAmulet и НЕ добавляется
+//     в инвентарь (он "надет" на игрока)
+//   - ВСЕ остальные предметы складываются в стопки через addToInventoryWithStack
 //
-// 🆕 ЭТАП 3: ПОДБОР АМУЛЕТА БЕЗДНЫ:
-// Когда игрок подбирает Амулет Бездны, устанавливается player.HasAmulet = true.
-// Монстры становятся агрессивнее. Игрок должен вернуться на уровень 1 для победы.
+// Поле HasAmulet определено в player.go.
+// Константа ItemTypeAmulet определена в item.go.
 func (g *Game) pickupItem(item *Item) {
 	if item == nil || g.player == nil || g.level == nil {
 		return
@@ -307,11 +315,13 @@ func (g *Game) pickupItem(item *Item) {
 
 	// 🆕 ЭТАП 3: Подбор Амулета Бездны
 	// Амулет не добавляется в инвентарь, а устанавливает флаг HasAmulet
+	// Монстры становятся агрессивнее (см. processTurn и AIUpdate в monster.go)
+	// Игрок должен вернуться на уровень 1 для победы (см. input.go → case '<')
 	if item.Type == ItemTypeAmulet {
 		g.player.HasAmulet = true
 		g.logAndSync("AMULET: Игрок подобрал Амулет Бездны!")
-		g.addMessage("Вы подобрали АМУЛЕТ БЕЗДНЫ! Монстры стали агрессивнее!")
-		g.addMessage("Вернитесь на уровень 1, чтобы победить!")
+		g.addMessage("Вы подобрали АМУЛЕТ БЕЗДНЫ!")
+		g.addMessage("Монстры стали агрессивнее! Вернитесь на уровень 1!")
 		g.level.RemoveItem(item)
 		return
 	}
@@ -330,12 +340,18 @@ func (g *Game) pickupItem(item *Item) {
 //
 // attackMonster — игрок атакует монстра
 //
-// 🆕 Особое сообщение для боссов: когда босс повержен, показываем
+// Особое сообщение для боссов: когда босс повержен, показываем
 // "⚔ БОСС ПОВЕРЖЕН! Путь к лестнице открыт!"
 //
 // 🆕 ЭТАП 3: СПАВН АМУЛЕТА ПОСЛЕ УБИЙСТВА КОРОЛЯ БЕЗДНЫ:
 // Когда Король Бездны повержен, на его месте спавнится Амулет Бездны.
 // Игрок должен подобрать Амулет и вернуться на уровень 1 для победы.
+//
+// Константа ItemTypeAmulet определена в item.go.
+// Функция NewItem определена в item.go.
+// Константа FinalBossName должна совпадать с именем в level_boss.go.
+const FinalBossName = "Король Бездны"
+
 func (g *Game) attackMonster(monster *Monster) {
 	if monster == nil || g.player == nil || g.level == nil {
 		return
@@ -355,7 +371,8 @@ func (g *Game) attackMonster(monster *Monster) {
 
 		// 🆕 ЭТАП 3: Спавн Амулета Бездны после убийства Короля Бездны
 		// Амулет спавнится на месте Короля Бездны
-		if monster.Name == "Король Бездны" {
+		// Игрок должен подобрать его и вернуться на уровень 1 для победы
+		if monster.Name == FinalBossName {
 			amulet := NewItem(monster.X, monster.Y, "Амулет Бездны", ItemTypeAmulet, 0, '&', tcell.ColorYellow)
 			g.level.Items = append(g.level.Items, amulet)
 			g.addMessage("⚔ КОРОЛЬ БЕЗДНЫ ПОВЕРЖЕН!")
@@ -363,7 +380,7 @@ func (g *Game) attackMonster(monster *Monster) {
 			g.logAndSync("FINAL_BOSS_KILLED: Амулет Бездны заспавнен на (%d, %d)",
 				monster.X, monster.Y)
 		} else if monster.IsBoss {
-			// 🆕 Особое сообщение для обычных боссов
+			// Особое сообщение для обычных боссов
 			g.addMessage(fmt.Sprintf("⚔ %s ПОВЕРЖЕН! Путь к лестнице открыт!", monster.Name))
 		} else if leveledUp {
 			g.addMessage(fmt.Sprintf(
@@ -383,7 +400,7 @@ func (g *Game) attackMonster(monster *Monster) {
 //
 // monsterAttacksPlayer — монстр атакует игрока
 //
-// 🆕 ОСОБОЕ СВОЙСТВО БОССА — ДВОЙНАЯ АТАКА:
+// ОСОБОЕ СВОЙСТВО БОССА — ДВОЙНАЯ АТАКА:
 // Если босс имеет способность BossAbilityDoubleAttack (Древний Дракон),
 // он наносит урон дважды за один ход.
 func (g *Game) monsterAttacksPlayer(monster *Monster) {
@@ -407,7 +424,7 @@ func (g *Game) monsterAttacksPlayer(monster *Monster) {
 	g.addMessage(fmt.Sprintf("%s атакует вас на %d урона!",
 		monster.Name, actualDamage))
 
-	// 🆕 ДВОЙНАЯ АТАКА БОССА (Древний Дракон)
+	// ДВОЙНАЯ АТАКА БОССА (Древний Дракон)
 	// Босс наносит урон второй раз за тот же ход
 	// Проверяем, что игрок ещё жив после первого удара
 	if monster.IsBoss && monster.BossAbility == BossAbilityDoubleAttack && g.player.HP > 0 {
@@ -423,98 +440,4 @@ func (g *Game) monsterAttacksPlayer(monster *Monster) {
 		g.addMessage(fmt.Sprintf("%s наносит ВТОРОЙ удар на %d урона!",
 			monster.Name, secondDamage))
 	}
-}
-
-// =============================================================================
-// 🆕 ЭТАП 3: ЭФФЕКТЫ СВИТКОВ
-// =============================================================================
-//
-// Эти функции вызываются из useItem в input.go при использовании свитка.
-// Каждый свиток — одноразовый предмет. После использования свиток удаляется.
-
-// useScrollMap — свиток карты: открывает весь этаж (снимает туман войны).
-// Все клетки становятся исследованными (Explored = true).
-func (g *Game) useScrollMap() {
-	if g.level == nil {
-		return
-	}
-	for y := 0; y < g.level.Height; y++ {
-		if y >= len(g.level.Tiles) {
-			continue
-		}
-		for x := 0; x < g.level.Width; x++ {
-			if x >= len(g.level.Tiles[y]) {
-				continue
-			}
-			g.level.Tiles[y][x].Explored = true
-		}
-	}
-	g.addMessage("Свиток карты открывает весь этаж!")
-	g.logAndSync("SCROLL_MAP: Весь этаж открыт")
-}
-
-// useScrollTeleport — свиток телепортации: случайное перемещение по уровню.
-// Игрок перемещается на случайную свободную клетку.
-func (g *Game) useScrollTeleport() {
-	if g.level == nil || g.player == nil {
-		return
-	}
-	x, y := g.level.FindFreeSpot()
-	g.player.X = x
-	g.player.Y = y
-	g.addMessage("Свиток телепортации переносит вас в другое место!")
-	g.logAndSync("SCROLL_TELEPORT: Игрок перемещён на (%d, %d)", x, y)
-}
-
-// useScrollLightning — свиток молнии: наносит 20 урона всем монстрам на уровне.
-// Мёртвые монстры удаляются, начисляется награда.
-func (g *Game) useScrollLightning() {
-	if g.level == nil || g.player == nil {
-		return
-	}
-
-	damage := 20
-	killedCount := 0
-
-	// Идём с конца, чтобы можно было удалять мёртвых монстров
-	for i := len(g.level.Monsters) - 1; i >= 0; i-- {
-		m := g.level.Monsters[i]
-		if m == nil {
-			continue
-		}
-		m.TakeDamage(damage)
-		if m.HP <= 0 {
-			// Монстр погиб от молнии — начисляем награду
-			g.player.Gold += m.GoldValue
-			g.player.GainXP(m.XPValue)
-			g.level.RemoveMonster(m)
-			killedCount++
-		}
-	}
-
-	g.addMessage(fmt.Sprintf("Свиток молнии поражает всех монстров! Убито: %d", killedCount))
-	g.logAndSync("SCROLL_LIGHTNING: Убито %d монстров", killedCount)
-}
-
-// useScrollBanishment — свиток изгнания: уничтожает случайного монстра на уровне.
-// Монстр удаляется без начисления награды (магия изгнания не даёт опыта).
-func (g *Game) useScrollBanishment() {
-	if g.level == nil || len(g.level.Monsters) == 0 {
-		g.addMessage("Свиток изгнания не находит цели!")
-		return
-	}
-
-	// Выбираем случайного монстра
-	idx := rand.Intn(len(g.level.Monsters))
-	m := g.level.Monsters[idx]
-	if m == nil {
-		g.addMessage("Свиток изгнания не находит цели!")
-		return
-	}
-
-	banishedName := m.Name
-	g.level.RemoveMonster(m)
-
-	g.addMessage(fmt.Sprintf("Свиток изгнания уничтожает %s!", banishedName))
-	g.logAndSync("SCROLL_BANISHMENT: %s изгнан", banishedName)
 }

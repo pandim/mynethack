@@ -31,6 +31,12 @@ const (
 // СОСТОЯНИЯ ИГРЫ
 // Игра может находиться в одном из состояний, и в зависимости от состояния
 // обрабатываются разные экраны и ввод пользователя.
+//
+// 🆕 ЭТАП 3: Добавлено состояние StateVictory для экрана победы.
+// Игрок побеждает, когда возвращается на уровень 1 с Амулетом Бездны.
+// Проверка победы происходит в input.go → handleMovement → case '<'.
+// Экран победы отрисовывается в render.go → renderVictoryScreen.
+// Обработка ввода на экране победы: input.go → handleVictoryInput.
 // =============================================================================
 type GameState int
 
@@ -40,7 +46,7 @@ const (
 	StateQuitConfirm                  // подтверждение выхода
 	StateDeathMenu                    // экран смерти игрока
 	StateHelp                         // экран помощи (вызывается клавишей ?)
-	StateMerchant                     // 🆕 экран торговли с торговцем
+	StateMerchant                     // экран торговли с торговцем
 	StateVictory                      // 🆕 ЭТАП 3: экран победы (игрок вернулся с Амулетом)
 )
 
@@ -60,20 +66,20 @@ const (
 // =============================================================================
 type Game struct {
 	// Экран и отображение
-	screen        tcell.Screen     // терминальный экран (библиотека tcell)
-	player        *Player          // игрок
-	level         *Level           // текущий уровень подземелья
-	levels        map[int]*Level   // кэш всех уровней (чтобы не генерировать заново при возврате)
-	depth         int              // текущая глубина (номер уровня)
-	messages      []string         // последние сообщения для отображения
-	quit          bool             // флаг выхода из игры
-	showInventory bool             // открыт ли инвентарь
-	helpPage      int              // 🆕 текущая страница экрана помощи (0 = управление, 1 = символы)
-	logger        *log.Logger      // логгер для отладки
-	logFileHandle *os.File         // файловый дескриптор лога
-	state         GameState        // текущее состояние игры
+	screen        tcell.Screen   // терминальный экран (библиотека tcell)
+	player        *Player        // игрок
+	level         *Level         // текущий уровень подземелья
+	levels        map[int]*Level // кэш всех уровней (чтобы не генерировать заново при возврате)
+	depth         int            // текущая глубина (номер уровня)
+	messages      []string       // последние сообщения для отображения
+	quit          bool           // флаг выхода из игры
+	showInventory bool           // открыт ли инвентарь
+	helpPage      int            // текущая страница экрана помощи (0 = управление, 1 = символы)
+	logger        *log.Logger    // логгер для отладки
+	logFileHandle *os.File       // файловый дескриптор лога
+	state         GameState      // текущее состояние игры
 
-	// 🆕 Торговец
+	// Торговец
 	currentMerchant *Merchant // текущий торговец (для экрана торговли)
 
 	// Музыка
@@ -179,6 +185,13 @@ func (g *Game) startBlinkTicker() func() {
 // =============================================================================
 // ГЛАВНЫЙ ЦИКЛ ИГРЫ
 // =============================================================================
+//
+// 🆕 ЭТАП 3: Добавлена обработка состояния StateVictory.
+// Когда игрок побеждает (возвращается на уровень 1 с Амулетом),
+// игра переходит в состояние StateVictory и показывает экран победы.
+// Функции обработки:
+//   - Отрисовка: render.go → renderVictoryScreen
+//   - Ввод: input.go → handleVictoryInput
 func (g *Game) Run() error {
 	if g.logFileHandle != nil {
 		defer g.logFileHandle.Close()
@@ -246,11 +259,13 @@ func (g *Game) Run() error {
 				g.renderHelpScreen()
 				g.handleHelpInput()
 			case StateMerchant:
-				// 🆕 Экран торговли с торговцем (функции в interact.go)
+				// Экран торговли с торговцем (функции в interact.go)
 				g.renderMerchantScreen()
 				g.handleMerchantInput()
 			case StateVictory:
-				// 🆕 ЭТАП 3: Экран победы (функции в render.go и input.go)
+				// 🆕 ЭТАП 3: Экран победы
+				// Отрисовка: render.go → renderVictoryScreen
+				// Ввод: input.go → handleVictoryInput
 				g.renderVictoryScreen()
 				g.handleVictoryInput()
 			}
