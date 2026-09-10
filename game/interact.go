@@ -2,7 +2,7 @@ package game
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -368,9 +368,8 @@ func (g *Game) openChest(chest *Chest) {
 	// Константы RelicDiamond, ScrollMap и т.д. определены в item.go.
 	// Конструкторы NewRelic, NewScroll определены в item.go.
 	case "golden":
-		// Используем math/rand для случайного выбора содержимого
-		// (импортирован в level_spawn.go, но доступен во всём пакете)
-		roll := rand.Intn(100)
+		// Используем math/rand/v2 для случайного выбора содержимого
+		roll := rand.IntN(100)
 
 		if roll < 50 {
 			// 50% шанс: реликвия
@@ -388,7 +387,7 @@ func (g *Game) openChest(chest *Chest) {
 				{RelicStatuette, "Древняя статуэтка", 400, '/', tcell.ColorFuchsia},
 				{RelicStarShard, "Осколок звезды", 500, '+', tcell.ColorAqua},
 			}
-			rd := relicData[rand.Intn(len(relicData))]
+			rd := relicData[rand.IntN(len(relicData))]
 			relic := NewRelic(0, 0, rd.relicID, rd.name, rd.sellPrice, rd.symbol, rd.color)
 			// Реликвии не стакаются — добавляем напрямую
 			// (не через addToInventoryWithStack)
@@ -410,7 +409,7 @@ func (g *Game) openChest(chest *Chest) {
 				{ScrollLightning, "Свиток молнии", '?', tcell.ColorYellow},
 				{ScrollBanishment, "Свиток изгнания", '?', tcell.ColorRed},
 			}
-			sd := scrollData[rand.Intn(len(scrollData))]
+			sd := scrollData[rand.IntN(len(scrollData))]
 			scroll := NewScroll(0, 0, sd.scrollType, sd.name, sd.symbol, sd.color)
 			// Свитки стакаются — используем addToInventoryWithStack
 			g.addToInventoryWithStack(scroll)
@@ -419,7 +418,7 @@ func (g *Game) openChest(chest *Chest) {
 
 		} else {
 			// 20% шанс: большое количество золота (50-100 монет)
-			goldAmount := 50 + rand.Intn(51) // 50-100
+			goldAmount := 50 + rand.IntN(51) // 50-100
 			g.player.Gold += goldAmount
 			g.addMessage(fmt.Sprintf("В золотом сундуке найдено %d золота!", goldAmount))
 			g.logAndSync("CHEST: Найдено %d золота в золотом сундуке", goldAmount)

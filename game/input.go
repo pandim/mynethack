@@ -2,7 +2,7 @@ package game
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2" // ДОБАВЛЕНО: для работы rand.IntN
 	"os"
 
 	"github.com/gdamore/tcell/v2"
@@ -86,7 +86,6 @@ func (g *Game) handleVictoryInput() {
 	}
 }
 
-
 // =============================================================================
 // ОБРАБОТКА ВВОДА
 // =============================================================================
@@ -167,20 +166,20 @@ func (g *Game) handleQuitConfirmInput() {
 
 	switch ev := ev.(type) {
 	case *tcell.EventKey:
-		if ev.Key() == tcell.KeyCtrlC {
-			g.quit = true
+		if ev.Key() == tcell.KeyEscape || ev.Rune() == 27 || ev.Rune() == 'n' || ev.Rune() == 'N' {
+			// Отмена выхода
+			g.state = StatePlaying
 			return
 		}
-		r := ev.Rune()
-		if r == 'y' || r == 'Y' {
-			g.quit = true // подтверждаем выход
-		} else if r == 'n' || r == 'N' || ev.Key() == tcell.KeyEscape {
-			g.state = StatePlaying // отменяем выход
+		if ev.Rune() == 'y' || ev.Rune() == 'Y' || ev.Key() == tcell.KeyEnter {
+			// Подтверждение выхода
+			g.quit = true
+			return
 		}
 	}
 }
 
-// handleDeathInput — обработка ввода на экране смерти
+// handleDeathInput — обработка ввода на экране смерти (ИСПРАВЛЕНО ИМЯ)
 func (g *Game) handleDeathInput() {
 	if g.screen == nil {
 		return
@@ -189,20 +188,16 @@ func (g *Game) handleDeathInput() {
 
 	switch ev := ev.(type) {
 	case *tcell.EventKey:
-		r := ev.Rune()
-		// Y или ESC — выход из игры
-		if r == 'y' || r == 'Y' ||
-			ev.Key() == tcell.KeyEscape ||
-			ev.Key() == tcell.KeyCtrlC {
+		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC || ev.Rune() == 'q' || ev.Rune() == 'Q' {
 			g.quit = true
 			return
 		}
-		// N — новая игра (удаляем старое сохранение)
-		if r == 'n' || r == 'N' {
+		if ev.Rune() == 'n' || ev.Rune() == 'N' || ev.Key() == tcell.KeyEnter {
+			// Новая игра после смерти: удаляем старое сохранение
 			if _, err := os.Stat(saveFile); err == nil {
 				os.Remove(saveFile)
 			}
-			g.startNewGame() // функция в save.go
+			g.startNewGame()
 			return
 		}
 	}
@@ -211,50 +206,36 @@ func (g *Game) handleDeathInput() {
 // handleInventoryInput — обработка ввода в инвентаре
 func (g *Game) handleInventoryInput(key rune) {
 	if g.player == nil {
-		g.showInventory = false
 		return
 	}
 
-	switch key {
-	case 'q', 'Q':
-		// Закрытие инвентаря
-		g.showInventory = false
-		g.logAndSync("UI: Инвентарь закрыт")
-		g.addMessage("Инвентарь закрыт")
-	default:
-		// Использование предмета по номеру (1-9)
-		if key >= '1' && key <= '9' {
-			index := int(key - '1')
-			if index < len(g.player.Inventory) {
-				g.useItem(index)
-			} else {
-				g.addMessage("Неверный номер предмета!")
-			}
+	// Цифры 1-9 для использования предметов
+	if key >= '1' && key <= '9' {
+		index := int(key - '1')
+		if index < 0 || index >= len(g.player.Inventory) {
+			g.addMessage("Такого предмета нет!")
+			return
 		}
+
+		item := g.player.Inventory[index]
+		if item == nil {
+			return
+		}
+
+		// Используем предмет
+		g.useItem(index)
+		return
+	}
+
+	// ESC или q — закрыть инвентарь
+	if key == 27 || key == 'q' || key == 'Q' {
+		g.showInventory = false
+		g.addMessage("Инвентарь закрыт")
+		return
 	}
 }
 
-// =============================================================================
-// ИСПОЛЬЗОВАНИЕ ПРЕДМЕТОВ
-// =============================================================================
-//
-// useItem — использование предмета из инвентаря.
-//
-// МЕХАНИКА СТОПОК:
-//   - При использовании предмета Count уменьшается на 1
-//   - Когда Count достигает 0 — предмет удаляется из инвентаря
-//   - Работает для ВСЕХ типов: зелья, еда, оружие, броня, свитки, ключи
-//
-// МЕХАНИКА "УЛУЧШЕНИЯ" для оружия/брони:
-//   - Если нет экипированного предмета — экипируем новое
-//   - Если есть — улучшаем текущее на +1 (новый предмет расходуется)
-//
-// 🆕 ЭТАП 1: Обработка свитков, реликций, ключей.
-// 🆕 ЭТАП 3: Обработка Амулета Бездны (нельзя использовать).
-//
-// Константы ItemTypeRelic, ItemTypeScroll, ItemTypeKey, ItemTypeAmulet
-// определены в item.go. Константы ScrollMap, ScrollTeleport и т.д. тоже в item.go.
-// Функции эффектов свитков (useScrollMap и т.д.) определены ниже в этом файле.
+// useItem — использование предмета из инвентаря по индексу
 func (g *Game) useItem(index int) {
 	if g.player == nil || index < 0 || index >= len(g.player.Inventory) {
 		return
@@ -265,244 +246,171 @@ func (g *Game) useItem(index int) {
 		return
 	}
 
-	g.logAndSync("ACTION: Использование предмета %s (Count=%d)", item.Name, item.Count)
-
 	switch item.Type {
 	case ItemTypePotion:
-		// Зелья: еда утоляет голод, остальные лечат
 		if item.Name == "Еда" {
 			g.player.Hunger = 0
-			g.logAndSync("STATUS: Голод утолен едой")
 			g.addMessage("Вы поели. Голод утолен.")
+			g.logAndSync("ITEM_USE: Съедена еда")
 		} else {
-			g.player.Heal(item.Value)
-			g.addMessage(fmt.Sprintf("Выпито %s: +%d HP", item.Name, item.Value))
+			heal := item.Value
+			oldHP := g.player.HP
+			g.player.HP += heal
+			if g.player.HP > g.player.MaxHP {
+				g.player.HP = g.player.MaxHP
+			}
+			g.addMessage(fmt.Sprintf("Вы выпили %s и восстановили %d HP!", item.Name, g.player.HP-oldHP))
+			g.logAndSync("ITEM_USE: Выпито %s, HP восстановлено на %d", item.Name, g.player.HP-oldHP)
 		}
+		g.consumeItem(index)
+		g.processTurn(0, 0) // Ход тратится
 
 	case ItemTypeWeapon:
-		// МЕХАНИКА "УЛУЧШЕНИЯ":
-		// Если нет экипированного оружия — экипируем новое
-		// Если есть — улучшаем текущее на +1 ATK
-		oldATK := 0
+		// Экипировка оружия
 		if g.player.EquippedWeapon != nil {
-			oldATK = g.player.EquippedWeapon.Value
+			// Снимаем старое оружие (возвращаем в инвентарь)
+			g.player.AttackVal -= g.player.EquippedWeapon.Value
+			g.player.Inventory = append(g.player.Inventory, g.player.EquippedWeapon)
 		}
-		g.player.EquipWeapon(item)
-		if oldATK == 0 {
-			g.addMessage(fmt.Sprintf("Экипировано %s: ATK +%d", item.Name, item.Value))
-		} else {
-			g.addMessage(fmt.Sprintf("%s улучшен! ATK +%d -> +%d",
-				g.player.EquippedWeapon.Name, oldATK, g.player.EquippedWeapon.Value))
-		}
+		g.player.EquippedWeapon = item
+		g.player.AttackVal += item.Value
+		// Удаляем из инвентаря
+		g.player.Inventory = append(g.player.Inventory[:index], g.player.Inventory[index+1:]...)
+		g.addMessage(fmt.Sprintf("Вы экипировали %s (ATK +%d)!", item.Name, item.Value))
+		g.logAndSync("ITEM_EQUIP: Экипировано оружие %s", item.Name)
+		g.processTurn(0, 0)
 
 	case ItemTypeArmor:
-		// МЕХАНИКА "УЛУЧШЕНИЯ":
-		// Если нет экипированной брони — экипируем новую
-		// Если есть — улучшаем текущую на +1 DEF
-		oldDEF := 0
+		// Экипировка брони
 		if g.player.EquippedArmor != nil {
-			oldDEF = g.player.EquippedArmor.Value
+			// Снимаем старую броню
+			g.player.Defense -= g.player.EquippedArmor.Value
+			g.player.Inventory = append(g.player.Inventory, g.player.EquippedArmor)
 		}
-		g.player.EquipArmor(item)
-		if oldDEF == 0 {
-			g.addMessage(fmt.Sprintf("Экипировано %s: DEF +%d", item.Name, item.Value))
-		} else {
-			g.addMessage(fmt.Sprintf("%s улучшен! DEF +%d -> +%d",
-				g.player.EquippedArmor.Name, oldDEF, g.player.EquippedArmor.Value))
-		}
+		g.player.EquippedArmor = item
+		g.player.Defense += item.Value
+		// Удаляем из инвентаря
+		g.player.Inventory = append(g.player.Inventory[:index], g.player.Inventory[index+1:]...)
+		g.addMessage(fmt.Sprintf("Вы экипировали %s (DEF +%d)!", item.Name, item.Value))
+		g.logAndSync("ITEM_EQUIP: Экипирована броня %s", item.Name)
+		g.processTurn(0, 0)
 
-	case ItemTypeGold:
-		// Золото уже в кошельке (подбирается автоматически)
-		g.addMessage("Золото уже в кошельке!")
-
-	// 🆕 ЭТАП 1: Обработка свитков
-	// Константы ScrollMap, ScrollTeleport, ScrollLightning, ScrollBanishment
-	// определены в item.go. Поле ScrollType определено в item.go.
 	case ItemTypeScroll:
-		switch item.ScrollType {
-		case ScrollMap:
-			g.useScrollMap()
-		case ScrollTeleport:
-			g.useScrollTeleport()
-		case ScrollLightning:
-			g.useScrollLightning()
-		case ScrollBanishment:
-			g.useScrollBanishment()
-		default:
-			g.addMessage("Неизвестный свиток!")
-		}
-
-	// 🆕 ЭТАП 1: Обработка реликций
-	// Реликвии нельзя использовать напрямую. Их можно продать торговцу
-	// (см. interact.go → sellRelic) или собрать все 5 для дополнительной цели.
-	// Метод CountRelics определён в player.go.
-	case ItemTypeRelic:
-		g.addMessage("Реликвию можно продать торговцу (клавиша T на торговце).")
-		g.addMessage(fmt.Sprintf("Собрано реликвий: %d из %d",
-			g.player.CountRelics(), RelicCount))
-
-	// 🆕 ЭТАП 1: Обработка ключей
-	// Ключ нельзя использовать напрямую. Он используется автоматически
-	// при открытии золотого сундука (см. interact.go → openChest).
-	case ItemTypeKey:
-		g.addMessage("Ключ нужен для открытия золотых сундуков (клавиша O на сундуке).")
-
-	// 🆕 ЭТАП 3: Обработка Амулета Бездны
-	// Амулет нельзя использовать. Он нужен для победы.
-	// Игрок должен вернуться на уровень 1 с Амулетом (см. case '<' ниже).
-	// Поле HasAmulet определено в player.go.
-	case ItemTypeAmulet:
-		g.addMessage("Амулет Бездны излучает странное сияние...")
-		g.addMessage("Вернитесь на уровень 1, чтобы победить!")
+		g.useScroll(index)
 
 	default:
-		g.addMessage("Нельзя использовать этот предмет!")
+		g.addMessage("Этот предмет нельзя использовать напрямую.")
+	}
+}
+
+// consumeItem — уменьшает Count предмета или удаляет его из инвентаря
+func (g *Game) consumeItem(index int) {
+	if g.player == nil || index < 0 || index >= len(g.player.Inventory) {
+		return
 	}
 
-	// Уменьшаем счётчик стопки (для всех типов предметов)
-	// Реликвии и Амулет не имеют стопок (Count всегда 1),
-	// но логика одинаковая: уменьшаем и удаляем при 0
+	item := g.player.Inventory[index]
+	if item == nil {
+		return
+	}
+
 	item.Count--
 	if item.Count <= 0 {
-		// Стопка пуста — удаляем предмет из инвентаря
+		// Удаляем предмет из инвентаря
 		g.player.Inventory = append(g.player.Inventory[:index], g.player.Inventory[index+1:]...)
-		g.logAndSync("ITEM_USED: %s полностью израсходован", item.Name)
-	} else {
-		// В стопке ещё есть предметы
-		g.addMessage(fmt.Sprintf("Осталось %s: %d шт.", item.Name, item.Count))
-	}
-
-	// Если инвентарь пуст — закрываем инвентарь
-	if len(g.player.Inventory) == 0 {
-		g.showInventory = false
 	}
 }
 
 // =============================================================================
-// 🆕 ЭТАП 1: ЭФФЕКТЫ СВИТКОВ
+// 🆕 ЭТАП 1: ИСПОЛЬЗОВАНИЕ СВИТКОВ
 // =============================================================================
 //
-// Эффекты свитков вызываются из useItem при использовании свитка.
-// Каждый свиток — одноразовый. После использования свиток удаляется
-// (обрабатывается в useItem через уменьшение Count).
-//
-// Константы ScrollMap, ScrollTeleport, ScrollLightning, ScrollBanishment
-// определены в item.go.
-
-// useScrollMap — свиток карты: открывает весь этаж (снимает туман войны).
-// Все клетки становятся исследованными (Explored = true).
-// Поле Tiles определено в level.go. Поле Explored определено в level.go.
-func (g *Game) useScrollMap() {
-	if g.level == nil {
+// useScroll — применяет эффект свитка и тратит его.
+// Реализованы 4 типа свитков: карта, телепорт, молния, изгнание.
+func (g *Game) useScroll(index int) {
+	if g.player == nil || index < 0 || index >= len(g.player.Inventory) {
 		return
 	}
-	for y := 0; y < g.level.Height; y++ {
-		if y >= len(g.level.Tiles) {
-			continue
-		}
-		for x := 0; x < g.level.Width; x++ {
-			if x >= len(g.level.Tiles[y]) {
-				continue
+
+	item := g.player.Inventory[index]
+	if item == nil || item.Type != ItemTypeScroll {
+		return
+	}
+
+	switch item.ScrollType {
+	case ScrollMap:
+		// Открываем всю карту
+		if g.level != nil {
+			for y := 0; y < g.level.Height; y++ {
+				for x := 0; x < g.level.Width; x++ {
+					g.level.Tiles[y][x].Explored = true
+					g.level.Tiles[y][x].Visible = true
+				}
 			}
-			g.level.Tiles[y][x].Explored = true
+			g.addMessage("Свиток карты озарил всё подземелье!")
+			g.logAndSync("SCROLL: Использован свиток карты")
+		}
+
+	case ScrollTeleport:
+		// Случайная телепортация на свободную клетку
+		if g.level != nil {
+			newX, newY := g.level.FindFreeSpot()
+			g.player.X = newX
+			g.player.Y = newY
+			g.addMessage("Вас телепортировало в другое место!")
+			g.logAndSync("SCROLL: Телепортация на (%d, %d)", newX, newY)
+		}
+
+	case ScrollLightning:
+		// Урон всем монстрам на уровне
+		if g.level != nil && len(g.level.Monsters) > 0 {
+			damage := 15 + g.player.Level*2
+			killedCount := 0
+			for i := len(g.level.Monsters) - 1; i >= 0; i-- {
+				m := g.level.Monsters[i]
+				if m != nil {
+					m.TakeDamage(damage)
+					if m.HP <= 0 {
+						g.level.RemoveMonster(m)
+						g.player.Gold += m.GoldValue
+						g.player.GainXP(m.XPValue)
+						killedCount++
+					}
+				}
+			}
+			if killedCount > 0 {
+				g.addMessage(fmt.Sprintf("Молния поразила всех монстров! Убито: %d", killedCount))
+			} else {
+				g.addMessage("Молния поразила всех монстров, но никто не погиб!")
+			}
+			g.logAndSync("SCROLL: Молния убила %d монстров", killedCount)
+		} else {
+			g.addMessage("На этом уровне нет монстров.")
+		}
+
+	case ScrollBanishment:
+		// Уничтожает одного случайного монстра на уровне
+		if g.level != nil && len(g.level.Monsters) > 0 {
+			idx := rand.IntN(len(g.level.Monsters))
+			m := g.level.Monsters[idx]
+			if m != nil {
+				g.level.RemoveMonster(m)
+				g.player.Gold += m.GoldValue
+				g.player.GainXP(m.XPValue)
+				g.addMessage(fmt.Sprintf("Монстр %s был изгнан в небытие!", m.Name))
+				g.logAndSync("SCROLL: Изгнан монстр %s", m.Name)
+			}
+		} else {
+			g.addMessage("На этом уровне нет монстров.")
 		}
 	}
-	g.addMessage("Свиток карты открывает весь этаж!")
-	g.logAndSync("SCROLL_MAP: Весь этаж открыт")
+
+	// Тратим свиток
+	g.consumeItem(index)
+	g.processTurn(0, 0)
 }
 
-// useScrollTeleport — свиток телепортации: случайное перемещение по уровню.
-// Игрок перемещается на случайную свободную клетку.
-// Функция FindFreeSpot определена в level_stairs.go.
-func (g *Game) useScrollTeleport() {
-	if g.level == nil || g.player == nil {
-		return
-	}
-	x, y := g.level.FindFreeSpot()
-	g.player.X = x
-	g.player.Y = y
-	g.addMessage("Свиток телепортации переносит вас в другое место!")
-	g.logAndSync("SCROLL_TELEPORT: Игрок перемещён на (%d, %d)", x, y)
-}
-
-// useScrollLightning — свиток молнии: наносит 20 урона всем монстрам на уровне.
-// Мёртвые монстры удаляются, начисляется награда.
-// Функция RemoveMonster определена в level_queries.go.
-// Метод GainXP определён в player.go.
-func (g *Game) useScrollLightning() {
-	if g.level == nil || g.player == nil {
-		return
-	}
-
-	damage := 20
-	killedCount := 0
-
-	// Идём с конца, чтобы можно было удалять мёртвых монстров
-	for i := len(g.level.Monsters) - 1; i >= 0; i-- {
-		m := g.level.Monsters[i]
-		if m == nil {
-			continue
-		}
-		m.TakeDamage(damage)
-		if m.HP <= 0 {
-			// Монстр погиб от молнии — начисляем награду
-			// Боссы тоже получают урон, но не спавнят Амулет
-			// (Амулет спавнится только при убийстве Короля Бездны в атаке)
-			g.player.Gold += m.GoldValue
-			g.player.GainXP(m.XPValue)
-			g.level.RemoveMonster(m)
-			killedCount++
-		}
-	}
-
-	g.addMessage(fmt.Sprintf("Свиток молнии поражает всех монстров! Убито: %d", killedCount))
-	g.logAndSync("SCROLL_LIGHTNING: Убито %d монстров", killedCount)
-}
-
-// useScrollBanishment — свиток изгнания: уничтожает случайного монстра на уровне.
-// Монстр удаляется без начисления награды (магия изгнания не даёт опыта).
-// Функция RemoveMonster определена в level_queries.go.
-func (g *Game) useScrollBanishment() {
-	if g.level == nil || len(g.level.Monsters) == 0 {
-		g.addMessage("Свиток изгнания не находит цели!")
-		return
-	}
-
-	// Выбираем случайного монстра
-	idx := rand.Intn(len(g.level.Monsters))
-	m := g.level.Monsters[idx]
-	if m == nil {
-		g.addMessage("Свиток изгнания не находит цели!")
-		return
-	}
-
-	banishedName := m.Name
-	g.level.RemoveMonster(m)
-
-	g.addMessage(fmt.Sprintf("Свиток изгнания уничтожает %s!", banishedName))
-	g.logAndSync("SCROLL_BANISHMENT: %s изгнан", banishedName)
-}
-
-// =============================================================================
-// ДВИЖЕНИЕ И КОМАНДЫ
-// =============================================================================
-//
-// handleMovement — обработка клавиш движения и команд
-//
-// Функции, вызываемые отсюда и определённые в других файлах:
-//   - processTurn → combat.go
-//   - nextLevel, prevLevel → save.go
-//   - saveGame, startNewGame → save.go
-//   - toggleMusic, changeMusicVolume → audio.go
-//   - showAltarUI, openChest → interact.go
-//   - GetMerchantAt, GetAltarAt, GetChestAt → level_queries.go
-//   - HasAliveBoss, GetBossName → level_boss.go
-//
-// 🆕 ЭТАП 3: ПРОВЕРКА ПОБЕДЫ НА УРОВНЕ 1 С АМУЛЕТОМ:
-// Когда игрок на уровне 1 с Амулетом Бездны нажимает '<',
-// игра переходит в состояние StateVictory (экран победы).
-// Поле HasAmulet определено в player.go.
-// Состояние StateVictory определено в game.go.
+// handleMovement — обработка клавиш движения и действий
 func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 	if g.player == nil || g.level == nil {
 		return
@@ -601,31 +509,12 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 				g.player.X == g.level.StairsUpX &&
 				g.player.Y == g.level.StairsUpY {
 
-				// 🆕 ЭТАП 3: ПРОВЕРКА ПОБЕДЫ
-				// Если игрок на уровне 1 с Амулетом Бездны — ПОБЕДА!
-				// Поле HasAmulet определено в player.go.
-				// Состояние StateVictory определено в game.go.
-				// Экран победы отрисовывается в render.go → renderVictoryScreen.
-				// Обработка ввода на экране победы: handleVictoryInput выше.
-				//
-				// Примечание: на уровне 1 нет лестницы вверх (StairsUp = false),
-				// но если игрок каким-то образом оказался на уровне 1 с Амулетом
-				// (например, через телепорт), проверяем победу здесь.
-				// Основной путь к победе: подняться с уровня 2 на уровень 1.
-				// Это обрабатывается в save.go → prevLevel, но дополнительная
-				// проверка здесь не помешает.
-				if g.depth == 1 && g.player.HasAmulet {
-					g.logAndSync("VICTORY: Игрок вернулся на уровень 1 с Амулетом Бездны!")
-					g.state = StateVictory
-					return
-				}
-
+				// Поднимаемся на уровень выше
 				g.prevLevel()
 
 				// 🆕 ЭТАП 3: ПРОВЕРКА ПОБЕДЫ ПОСЛЕ ПОДЪЁМА
-				// После подъёма проверяем, оказались ли мы на уровне 1 с Амулетом.
-				// Это основной путь к победе: подняться с уровня 2 на уровень 1.
-				// Поле depth определено в game.go. Поле HasAmulet в player.go.
+				// Основной путь к победе: подняться с уровня 2 на уровень 1.
+				// Если игрок оказался на уровне 1 с Амулетом — ПОБЕДА!
 				if g.depth == 1 && g.player.HasAmulet {
 					g.logAndSync("VICTORY: Игрок вернулся на уровень 1 с Амулетом Бездны!")
 					g.state = StateVictory
@@ -654,24 +543,25 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 			if merchant := g.level.GetMerchantAt(g.player.X, g.player.Y); merchant != nil {
 				g.currentMerchant = merchant
 				g.state = StateMerchant
+				g.logAndSync("UI: Открыт экран торговли")
 				return
 			}
 			g.addMessage("Здесь нет торговца.")
 			return
-		case 'b', 'B':
-			// B — благословение (если стоим на алтаре)
-			// Функция GetAltarAt определена в level_queries.go
+		case 'P', 'p':
+			// P — молитва на алтаре (если стоим на алтаре)
 			if altar := g.level.GetAltarAt(g.player.X, g.player.Y); altar != nil {
-				g.showAltarUI(altar) // функция в interact.go
+				g.showAltarUI(altar)
+				g.processTurn(0, 0) // Молитва тратит ход
 				return
 			}
 			g.addMessage("Здесь нет алтаря.")
 			return
-		case 'o', 'O':
+		case 'O', 'o':
 			// O — открыть сундук (если стоим на сундуке)
-			// Функция GetChestAt определена в level_queries.go
 			if chest := g.level.GetChestAt(g.player.X, g.player.Y); chest != nil {
-				g.openChest(chest) // функция в interact.go
+				g.openChest(chest)
+				g.processTurn(0, 0) // Открытие тратит ход
 				return
 			}
 			g.addMessage("Здесь нет сундука.")
@@ -679,8 +569,9 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 		}
 	}
 
-	// Если было движение — обрабатываем ход
+	// Если было движение, обрабатываем ход
 	if dx != 0 || dy != 0 {
+		g.logAndSync("MOVE: Игрок движется на dx=%d, dy=%d", dx, dy)
 		g.processTurn(dx, dy)
 	}
 }

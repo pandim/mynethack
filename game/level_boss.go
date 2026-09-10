@@ -1,7 +1,7 @@
 package game
 
 import (
-	"math/rand"
+	"math/rand/v2"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -200,11 +200,9 @@ func (l *Level) FindFreeSpotNear(x, y int) (int, int) {
 	}
 
 	// Перемешиваем направления для случайности
-	// Функция rand определена в пакете math/rand (импортирован выше)
-	for i := len(dirs) - 1; i > 0; i-- {
-		j := rand.Intn(i + 1)
+	rand.Shuffle(len(dirs), func(i, j int) {
 		dirs[i], dirs[j] = dirs[j], dirs[i]
-	}
+	})
 
 	for _, d := range dirs {
 		nx, ny := x+d.X, y+d.Y

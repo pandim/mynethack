@@ -3,7 +3,10 @@ package game
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand/v2"
 	"os"
+
+	"github.com/gdamore/tcell/v2"
 )
 
 // =============================================================================
@@ -428,4 +431,119 @@ func (g *Game) respawnLevel(l *Level) {
 	}
 
 	g.addMessage(fmt.Sprintf("Уровень изменился... Монстры вернулись! (посещение #%d)", l.VisitCount))
+}
+// =============================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ВОЗРОЖДЕНИЯ УРОВНЯ (ЭТАП 2)
+// =============================================================================
+
+// respawnMonsters — очищает уровень от старых монстров и создает новых.
+// Новые монстры сильнее, но их меньше.
+func (l *Level) respawnMonsters() {
+	if l == nil {
+		return
+	}
+	// Очищаем старых монстров
+	l.Monsters = make([]*Monster, 0)
+
+	// Монстров меньше: базовое количество / 2 (минимум 2)
+	count := (5 + l.Depth) / 2
+	if count < 2 {
+		count = 2
+	}
+
+	monsterTypes := []struct {
+		name   string
+		hp     int
+		attack int
+		gold   int
+		xp     int
+		symbol rune
+		color  tcell.Color
+	}{
+		{"Гоблин", 8, 2, 5, 8, 'g', tcell.ColorGreen},
+		{"Орк", 12, 3, 10, 15, 'o', tcell.ColorDarkRed},
+		{"Скелет", 10, 2, 8, 12, 's', tcell.ColorWhite},
+		{"Крыса", 4, 1, 2, 3, 'r', tcell.ColorBrown},
+	}
+
+	// Усиление: множитель увеличивается с VisitCount
+	strengthMultiplier := 1 + (l.VisitCount / 2)
+
+	for i := 0; i < count; i++ {
+		var x, y int
+		attempts := 0
+		for {
+			x = 1 + rand.IntN(l.Width-2)
+			y = 1 + rand.IntN(l.Height-2)
+			if l.Tiles[y][x].Type == TileFloor &&
+				!l.hasMonsterAt(x, y) &&
+				!l.hasItemAt(x, y) &&
+				!l.isStairsAt(x, y) {
+				break
+			}
+			attempts++
+			if attempts > MaxSpawnAttempts {
+				return
+			}
+		}
+
+		mt := monsterTypes[rand.IntN(len(monsterTypes))]
+		// Усиленные характеристики
+		hp := mt.hp * (1 + l.Depth/2) * strengthMultiplier
+		attack := mt.attack * (1 + l.Depth/3) * strengthMultiplier
+		gold := mt.gold * l.Depth * strengthMultiplier
+		xp := mt.xp + l.Depth*2
+
+		m := NewMonster(x, y, mt.name, hp, attack, gold, xp, mt.symbol, mt.color)
+		m.SetLogger(l.logger)
+		l.Monsters = append(l.Monsters, m)
+	}
+
+	if l.logger != nil {
+		l.logger.Printf("RESPAWN: Уровень %d возрожден. Монстров: %d, множитель силы: %d", l.Depth, count, strengthMultiplier)
+	}
+}
+
+// newChestContents — генерирует новое случайное содержимое для сундука при возрождении.
+func newChestContents() string {
+	roll := rand.IntN(100)
+	if roll < 50 {
+		return "potion"
+	} else if roll < 80 {
+		return "food"
+	}
+	return "monster"
+}
+
+// newMerchantItems — генерирует новый ассортимент товаров для торговца.
+// Цены удваиваются с каждым VisitCount.
+func newMerchantItems(depth, visitCount int) []*Item {
+	basePrices := []struct {
+		name   string
+		itype  ItemType
+		value  int
+		price  int
+		symbol rune
+		color  tcell.Color
+	}{
+		{"Зелье здоровья", ItemTypePotion, 10, 30, '!', tcell.ColorRed},
+		{"Еда", ItemTypePotion, 0, 15, '%', tcell.ColorPurple},
+		{"Меч", ItemTypeWeapon, 5, 50, '/', tcell.ColorYellow},
+		{"Щит", ItemTypeArmor, 3, 40, '[', tcell.ColorBlue},
+	}
+
+	items := make([]*Item, 0)
+	priceMultiplier := visitCount // Цена удваивается при каждом повторном посещении
+
+	for _, bp := range basePrices {
+		// Шанс 70%, что товар будет в наличии
+		if rand.IntN(100) < 70 {
+			price := (bp.price + depth*5) * priceMultiplier
+			item := NewItem(0, 0, bp.name, bp.itype, bp.value, bp.symbol, bp.color)
+			item.Price = price
+			items = append(items, item)
+		}
+	}
+
+	return items
 }

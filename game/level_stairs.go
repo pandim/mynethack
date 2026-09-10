@@ -1,7 +1,14 @@
 package game
 
 import (
-	"math/rand"
+	"math/rand/v2"
+)
+
+// =============================================================================
+// КОНСТАНТЫ ПОИСКА МЕСТА
+// =============================================================================
+const (
+	MaxFindSpotAttempts = 1000 // Максимальное количество попыток найти свободную клетку
 )
 
 // =============================================================================
@@ -44,7 +51,7 @@ func (l *Level) placeStairs(depth int) {
 	}
 
 	// Лестница вниз — на случайной клетке пола
-	down := floors[rand.Intn(len(floors))]
+	down := floors[rand.IntN(len(floors))]
 	l.StairsDownX = down.X
 	l.StairsDownY = down.Y
 
@@ -64,7 +71,7 @@ func (l *Level) placeStairs(depth int) {
 			}
 		}
 		if len(upFloors) > 0 {
-			up := upFloors[rand.Intn(len(upFloors))]
+			up := upFloors[rand.IntN(len(upFloors))]
 			l.StairsUpX = up.X
 			l.StairsUpY = up.Y
 		} else {
@@ -211,7 +218,7 @@ func (l *Level) FindFreeSpot() (int, int) {
 // но если лестница на одной клетке с другой лестницей — исключаем одну из них.
 //
 // Алгоритм:
-//   1. 1000 случайных попыток найти проходимую клетку без монстров/предметов/лестниц
+//   1. MaxFindSpotAttempts случайных попыток найти проходимую клетку без монстров/предметов/лестниц
 //   2. Если не удалось — полный перебор всех клеток
 //   3. Если и это не помогло — центр первой комнаты
 //   4. Аварийный вариант — центр карты (превращаем в пол при необходимости)
@@ -223,9 +230,9 @@ func (l *Level) FindFreeSpotExcluding(excludeX, excludeY int) (int, int) {
 	// Этап 1: случайные попытки (быстро для больших карт)
 	if l.Width >= 3 && l.Height >= 3 {
 		attempts := 0
-		for attempts < 1000 {
-			x := 1 + rand.Intn(l.Width-2)
-			y := 1 + rand.Intn(l.Height-2)
+		for attempts < MaxFindSpotAttempts {
+			x := 1 + rand.IntN(l.Width-2)
+			y := 1 + rand.IntN(l.Height-2)
 			if x == excludeX && y == excludeY {
 				attempts++
 				continue
