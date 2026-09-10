@@ -266,33 +266,51 @@ func (g *Game) useItem(index int) {
 		g.processTurn(0, 0) // Ход тратится
 
 	case ItemTypeWeapon:
-		// Экипировка оружия
-		if g.player.EquippedWeapon != nil {
-			// Снимаем старое оружие (возвращаем в инвентарь)
-			g.player.AttackVal -= g.player.EquippedWeapon.Value
-			g.player.Inventory = append(g.player.Inventory, g.player.EquippedWeapon)
+		// 🆕 МЕХАНИКА УЛУЧШЕНИЯ: если имя совпадает, улучшаем текущее оружие на +1
+		if g.player.EquippedWeapon != nil && g.player.EquippedWeapon.Name == item.Name {
+			g.player.EquippedWeapon.Value += 1
+			g.player.AttackVal += 1
+			g.consumeItem(index) // Расходуем 1 предмет из стопки (уменьшаем Count)
+			g.addMessage(fmt.Sprintf("Ваше оружие %s улучшено! Теперь ATK +%d", 
+				g.player.EquippedWeapon.Name, g.player.EquippedWeapon.Value))
+			g.logAndSync("ITEM_UPGRADE: Оружие %s улучшено до ATK +%d", 
+				g.player.EquippedWeapon.Name, g.player.EquippedWeapon.Value)
+		} else {
+			// Если имя не совпадает или ничего не экипировано — обычная замена
+			if g.player.EquippedWeapon != nil {
+				g.player.AttackVal -= g.player.EquippedWeapon.Value
+				g.player.Inventory = append(g.player.Inventory, g.player.EquippedWeapon)
+			}
+			g.player.EquippedWeapon = item
+			g.player.AttackVal += item.Value
+			g.player.Inventory = append(g.player.Inventory[:index], g.player.Inventory[index+1:]...)
+			g.addMessage(fmt.Sprintf("Вы экипировали %s (ATK +%d)!", item.Name, item.Value))
+			g.logAndSync("ITEM_EQUIP: Экипировано оружие %s", item.Name)
 		}
-		g.player.EquippedWeapon = item
-		g.player.AttackVal += item.Value
-		// Удаляем из инвентаря
-		g.player.Inventory = append(g.player.Inventory[:index], g.player.Inventory[index+1:]...)
-		g.addMessage(fmt.Sprintf("Вы экипировали %s (ATK +%d)!", item.Name, item.Value))
-		g.logAndSync("ITEM_EQUIP: Экипировано оружие %s", item.Name)
 		g.processTurn(0, 0)
 
 	case ItemTypeArmor:
-		// Экипировка брони
-		if g.player.EquippedArmor != nil {
-			// Снимаем старую броню
-			g.player.Defense -= g.player.EquippedArmor.Value
-			g.player.Inventory = append(g.player.Inventory, g.player.EquippedArmor)
+		// 🆕 МЕХАНИКА УЛУЧШЕНИЯ: если имя совпадает, улучшаем текущую броню на +1
+		if g.player.EquippedArmor != nil && g.player.EquippedArmor.Name == item.Name {
+			g.player.EquippedArmor.Value += 1
+			g.player.Defense += 1
+			g.consumeItem(index) // Расходуем 1 предмет из стопки (уменьшаем Count)
+			g.addMessage(fmt.Sprintf("Ваша броня %s улучшена! Теперь DEF +%d", 
+				g.player.EquippedArmor.Name, g.player.EquippedArmor.Value))
+			g.logAndSync("ITEM_UPGRADE: Броня %s улучшена до DEF +%d", 
+				g.player.EquippedArmor.Name, g.player.EquippedArmor.Value)
+		} else {
+			// Если имя не совпадает или ничего не экипировано — обычная замена
+			if g.player.EquippedArmor != nil {
+				g.player.Defense -= g.player.EquippedArmor.Value
+				g.player.Inventory = append(g.player.Inventory, g.player.EquippedArmor)
+			}
+			g.player.EquippedArmor = item
+			g.player.Defense += item.Value
+			g.player.Inventory = append(g.player.Inventory[:index], g.player.Inventory[index+1:]...)
+			g.addMessage(fmt.Sprintf("Вы экипировали %s (DEF +%d)!", item.Name, item.Value))
+			g.logAndSync("ITEM_EQUIP: Экипирована броня %s", item.Name)
 		}
-		g.player.EquippedArmor = item
-		g.player.Defense += item.Value
-		// Удаляем из инвентаря
-		g.player.Inventory = append(g.player.Inventory[:index], g.player.Inventory[index+1:]...)
-		g.addMessage(fmt.Sprintf("Вы экипировали %s (DEF +%d)!", item.Name, item.Value))
-		g.logAndSync("ITEM_EQUIP: Экипирована броня %s", item.Name)
 		g.processTurn(0, 0)
 
 	case ItemTypeScroll:
