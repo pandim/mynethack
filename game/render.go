@@ -161,36 +161,120 @@ func (g *Game) renderStartMenu() {
 }
 
 // renderQuitConfirm — отрисовка диалога подтверждения выхода
+//
+// 🆕 ОКНО ИЗ ДВОЙНЫХ ПОЛОСОК ASCII:
+// Рамка рисуется символами ╔═╗, ║, ╚═╝ для красивого оформления
 func (g *Game) renderQuitConfirm() {
 	if g.screen == nil {
 		return
 	}
-	style := tcell.StyleDefault.Foreground(tcell.ColorRed).Background(tcell.ColorBlack)
-	boxStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlue)
+	g.screen.Clear()
 
-	g.drawCentered(10, "Вы уверены, что хотите выйти?", boxStyle)
-	g.drawCentered(12, "[Y] Да  [N] Нет", style)
+	// Стили
+	boxStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
+	textStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
+	style := tcell.StyleDefault.Foreground(tcell.ColorRed).Background(tcell.ColorBlack)
+
+	// Размеры окна
+	boxWidth := 40
+	boxHeight := 7
+	boxX := (screenWidth - boxWidth) / 2
+	boxY := (screenHeight - boxHeight) / 2
+
+	// Рисуем верхнюю границу: ╔═...═╗
+	g.drawString(boxX, boxY, "╔", boxStyle)
+	for i := 1; i < boxWidth-1; i++ {
+		g.drawString(boxX+i, boxY, "═", boxStyle)
+	}
+	g.drawString(boxX+boxWidth-1, boxY, "╗", boxStyle)
+
+	// Рисуем средние строки: ║ ... ║
+	for i := 1; i < boxHeight-1; i++ {
+		g.drawString(boxX, boxY+i, "║", boxStyle)
+		g.drawString(boxX+boxWidth-1, boxY+i, "║", boxStyle)
+		// Заполняем внутреннюю часть пробелами
+		for j := 1; j < boxWidth-1; j++ {
+			g.drawString(boxX+j, boxY+i, " ", boxStyle)
+		}
+	}
+
+	// Рисуем нижнюю границу: ╚═...═╝
+	g.drawString(boxX, boxY+boxHeight-1, "╚", boxStyle)
+	for i := 1; i < boxWidth-1; i++ {
+		g.drawString(boxX+i, boxY+boxHeight-1, "═", boxStyle)
+	}
+	g.drawString(boxX+boxWidth-1, boxY+boxHeight-1, "╝", boxStyle)
+
+	// Рисуем текст внутри окна
+	title := "Вы уверены, что хотите выйти?"
+	titleX := boxX + (boxWidth-stringWidth(title))/2
+	g.drawString(titleX, boxY+2, title, textStyle)
+
+	options := "[Y] Да  [N] Нет"
+	optionsX := boxX + (boxWidth-stringWidth(options))/2
+	g.drawString(optionsX, boxY+4, options, style)
 
 	g.screen.Show()
 }
 
 // renderDeathScreen — отрисовка экрана смерти
+//
+// 🆕 ОКНО ИЗ ДВОЙНЫХ ПОЛОСОК ASCII:
+// Рамка рисуется символами ╔═╗, ║, ╚═╝ для красивого оформления
 func (g *Game) renderDeathScreen() {
 	if g.screen == nil || g.player == nil {
 		return
 	}
 	g.screen.Clear()
 
-	style := tcell.StyleDefault.Foreground(tcell.ColorRed).Background(tcell.ColorBlack)
+	// Стили
+	boxStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
+	titleStyle := tcell.StyleDefault.Foreground(tcell.ColorRed).Background(tcell.ColorBlack)
+	style := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
 
-	g.drawCentered(screenHeight/2-3, "ВЫ ПОГИБЛИ!", style)
+	// Размеры окна
+	boxWidth := 50
+	boxHeight := 9
+	boxX := (screenWidth - boxWidth) / 2
+	boxY := (screenHeight - boxHeight) / 2
+
+	// Рисуем верхнюю границу: ╔═...═╗
+	g.drawString(boxX, boxY, "╔", boxStyle)
+	for i := 1; i < boxWidth-1; i++ {
+		g.drawString(boxX+i, boxY, "═", boxStyle)
+	}
+	g.drawString(boxX+boxWidth-1, boxY, "╗", boxStyle)
+
+	// Рисуем средние строки: ║ ... ║
+	for i := 1; i < boxHeight-1; i++ {
+		g.drawString(boxX, boxY+i, "║", boxStyle)
+		g.drawString(boxX+boxWidth-1, boxY+i, "║", boxStyle)
+		// Заполняем внутреннюю часть пробелами
+		for j := 1; j < boxWidth-1; j++ {
+			g.drawString(boxX+j, boxY+i, " ", boxStyle)
+		}
+	}
+
+	// Рисуем нижнюю границу: ╚═...═╝
+	g.drawString(boxX, boxY+boxHeight-1, "╚", boxStyle)
+	for i := 1; i < boxWidth-1; i++ {
+		g.drawString(boxX+i, boxY+boxHeight-1, "═", boxStyle)
+	}
+	g.drawString(boxX+boxWidth-1, boxY+boxHeight-1, "╝", boxStyle)
+
+	// Рисуем текст внутри окна
+	title := "ВЫ ПОГИБЛИ!"
+	titleX := boxX + (boxWidth-stringWidth(title))/2
+	g.drawString(titleX, boxY+2, title, titleStyle)
 
 	scoreMsg := fmt.Sprintf("Глубина: %d | Золото: %d | Уровень: %d",
 		g.depth, g.player.Gold, g.player.Level)
-	g.drawCentered(screenHeight/2-1, scoreMsg, style)
+	scoreX := boxX + (boxWidth-stringWidth(scoreMsg))/2
+	g.drawString(scoreX, boxY+4, scoreMsg, style)
 
 	prompt := `Вы хотите выйти "Y" или начать игру заново "N"?`
-	g.drawCentered(screenHeight/2+1, prompt, style)
+	promptX := boxX + (boxWidth-stringWidth(prompt))/2
+	g.drawString(promptX, boxY+6, prompt, style)
 
 	g.screen.Show()
 }

@@ -151,9 +151,14 @@ func (g *Game) processTurn(dx, dy int) {
 		if m == nil {
 			continue
 		}
-		// Удаляем мёртвых монстров
+				// Удаляем мёртвых монстров
 		if m.HP <= 0 {
-			g.logAndSync("DEATH: %s погибает и удаляется", m.Name)
+			// 🆕 ГЕНДЕРНАЯ ФОРМА в логе
+			deathVerb := "умер"
+			if m.Name == "Ловушка" || m.Name == "Крыса" {
+				deathVerb = "умерла"
+			}
+			g.logAndSync("DEATH: %s %s и удаляется", m.Name, deathVerb)
 			g.level.RemoveMonster(m)
 			continue
 		}
@@ -347,6 +352,10 @@ func (g *Game) pickupItem(item *Item) {
 // Когда Король Бездны повержен, на его месте спавнится Амулет Бездны.
 // Игрок должен подобрать Амулет и вернуться на уровень 1 для победы.
 //
+// 🆕 ГЕНДЕРНЫЕ ФОРМЫ ПРИ СМЕРТИ:
+// "Ловушка" и "Крыса" — женский род ("умерла")
+// Все остальные — мужской род ("умер")
+//
 // Константа ItemTypeAmulet определена в item.go.
 // Функция NewItem определена в item.go.
 // Константа FinalBossName должна совпадать с именем в level_boss.go.
@@ -369,6 +378,13 @@ func (g *Game) attackMonster(monster *Monster) {
 		g.logAndSync("KILL: %s убит. Gold +%d, XP +%d",
 			monster.Name, monster.GoldValue, monster.XPValue)
 
+		// 🆕 ГЕНДЕРНАЯ ФОРМА: определяем "умер" или "умерла"
+		// "Ловушка" и "Крыса" — женский род
+		deathVerb := "умер"
+		if monster.Name == "Ловушка" || monster.Name == "Крыса" {
+			deathVerb = "умерла"
+		}
+
 		// 🆕 ЭТАП 3: Спавн Амулета Бездны после убийства Короля Бездны
 		// Амулет спавнится на месте Короля Бездны
 		// Игрок должен подобрать его и вернуться на уровень 1 для победы
@@ -383,13 +399,15 @@ func (g *Game) attackMonster(monster *Monster) {
 			// Особое сообщение для обычных боссов
 			g.addMessage(fmt.Sprintf("⚔ %s ПОВЕРЖЕН! Путь к лестнице открыт!", monster.Name))
 		} else if leveledUp {
+			// 🆕 Используем гендерную форму
 			g.addMessage(fmt.Sprintf(
-				"%s погиб! +%d золота, +%d опыта. Уровень повышен до %d!",
-				monster.Name, monster.GoldValue, monster.XPValue, g.player.Level))
+				"%s %s! +%d золота, +%d опыта. Уровень повышен до %d!",
+				monster.Name, deathVerb, monster.GoldValue, monster.XPValue, g.player.Level))
 		} else {
+			// 🆕 Используем гендерную форму
 			g.addMessage(fmt.Sprintf(
-				"%s погиб! +%d золота, +%d опыта.",
-				monster.Name, monster.GoldValue, monster.XPValue))
+				"%s %s! +%d золота, +%d опыта.",
+				monster.Name, deathVerb, monster.GoldValue, monster.XPValue))
 		}
 	}
 }

@@ -568,13 +568,18 @@ func newChestContents() string {
 // Создаёт новый набор товаров для торговца.
 // Используется при возрождении торговцев (в respawnLevel в save.go).
 //
-// Цены масштабируются по глубине уровня.
-// Логика аналогична NewMerchant в merchant.go, но вынесена отдельно
-// для возможности возрождения торговцев без пересоздания объекта.
+// Цены масштабируются по глубине уровня И по количеству посещений.
+// При каждом повторном посещении цены удваиваются.
 //
 // ⚠️ ВАЖНО: цена хранится в поле `Price`, а эффект предмета — в поле `Value`.
 // Это позволяет зелью лечить на 10, даже если его цена 35 золота.
-func newMerchantItems(depth int) []*Item {
+//
+// 🆕 Параметр visitCount: количество посещений уровня
+// VisitCount = 1 — первое посещение (обычные цены)
+// VisitCount = 2 — второе посещение (цены ×2)
+// VisitCount = 3 — третье посещение (цены ×4)
+// и т.д.
+func newMerchantItems(depth int, visitCount int) []*Item {
 	basePrices := []struct {
 		name   string
 		itype  ItemType
@@ -591,7 +596,19 @@ func newMerchantItems(depth int) []*Item {
 
 	items := make([]*Item, 0)
 	for _, bp := range basePrices {
-		price := bp.price + depth*5
+		// Базовая цена зависит от глубины
+		basePrice := bp.price + depth*5
+		
+		// 🆕 Удваиваем цену при каждом повторном посещении
+		// visitCount=1: множитель=1 (первое посещение)
+		// visitCount=2: множитель=2 (второе посещение)
+		// visitCount=3: множитель=4 (третье посещение)
+		multiplier := 1
+		for i := 1; i < visitCount; i++ {
+			multiplier *= 2
+		}
+		price := basePrice * multiplier
+		
 		item := NewItem(0, 0, bp.name, bp.itype, bp.value, bp.symbol, bp.color)
 		item.Price = price
 		items = append(items, item)

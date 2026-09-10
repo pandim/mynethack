@@ -23,6 +23,7 @@ const (
 // =============================================================================
 // СТРУКТУРЫ ДАННЫХ
 // =============================================================================
+
 // Tile — одна клетка карты.
 // Хранит тип клетки и информацию о её видимости/исследованности.
 type Tile struct {
@@ -57,6 +58,11 @@ type Level struct {
 	Altars    []*Altar    // алтари (на каждом уровне)
 	Chests    []*Chest    // сундуки (на каждом уровне)
 
+	// 🆕 ЭТАП 2: Счётчик посещений уровня
+	// Используется для удвоения цен при повторном посещении
+	// VisitCount = 1 при первом посещении, увеличивается при каждом возрождении
+	VisitCount int // количество посещений уровня (для удвоения цен)
+
 	// Лестницы
 	StairsUp    bool // есть ли лестница вверх
 	StairsDown  bool // есть ли лестница вниз (всегда есть)
@@ -82,14 +88,14 @@ type Level struct {
 //	NewLevel(width, height, depth, logger)
 //
 // Порядок генерации:
-//   1. Заполняем всю карту стенами
-//   2. Генерируем комнаты и коридоры (generateDungeon)
-//   3. Размещаем лестницы (placeStairs)
-//   4. Спавним монстров (spawnMonsters) — количество зависит от глубины
-//   5. Спавним предметы (spawnItems)
-//   6. Спавним торговцев (на каждом 5-м уровне)
-//   7. Спавним алтари (на каждом уровне)
-//   8. Спавним сундуки (на каждом уровне)
+//  1. Заполняем всю карту стенами
+//  2. Генерируем комнаты и коридоры (generateDungeon)
+//  3. Размещаем лестницы (placeStairs)
+//  4. Спавним монстров (spawnMonsters) — количество зависит от глубины
+//  5. Спавним предметы (spawnItems)
+//  6. Спавним торговцев (на каждом 5-м уровне)
+//  7. Спавним алтари (на каждом уровне)
+//  8. Спавним сундуки (на каждом уровне)
 func NewLevel(width, height int, depth int, logger ...*log.Logger) *Level {
 	var lgr *log.Logger
 	if len(logger) > 0 {
@@ -119,6 +125,7 @@ func NewLevel(width, height int, depth int, logger ...*log.Logger) *Level {
 		Altars:      make([]*Altar, 0),
 		Chests:      make([]*Chest, 0),
 		Rooms:       make([]Room, 0),
+		VisitCount:  1, // 🆕 Первое посещение уровня
 		logger:      lgr,
 		StairsUpX:   -1, // -1 означает "не размещена"
 		StairsUpY:   -1,
@@ -148,21 +155,17 @@ func NewLevel(width, height int, depth int, logger ...*log.Logger) *Level {
 	level.spawnAltars()            // алтари на каждом уровне
 	level.spawnChests()            // сундуки на каждом уровне
 	level.spawnBoss(depth)         // боссы на каждом 6-м уровне
-	// 🆕 Новые спавны Этапа 1
-	level.spawnRelics(depth)         // реликвии для продажи
-	level.spawnScrolls(depth)        // свитки с заклинаниями
-	level.spawnKeys(depth)           // ключи от золотых сундуков
-	level.spawnGoldenChests(depth)   // золотые сундуки (уровни 3+)
 
 	// Логируем параметры сгенерированного уровня
 	if level.logger != nil {
 		level.logger.Printf(
-			"LEVEL_NEW: depth=%d upstairs=(%d,%d) downstairs=(%d,%d) rooms=%d monsters=%d items=%d merchants=%d altars=%d chests=%d",
+			"LEVEL_NEW: depth=%d upstairs=(%d,%d) downstairs=(%d,%d) rooms=%d monsters=%d items=%d merchants=%d altars=%d chests=%d visitCount=%d",
 			depth,
 			level.StairsUpX, level.StairsUpY,
 			level.StairsDownX, level.StairsDownY,
 			len(level.Rooms), len(level.Monsters), len(level.Items),
 			len(level.Merchants), len(level.Altars), len(level.Chests),
+			level.VisitCount,
 		)
 	}
 
