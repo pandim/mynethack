@@ -1,3 +1,12 @@
+// =============================================================================
+// СПИСОК ВСЕХ КЛАВИШ (синхронизировать с renderHelpScreen!)
+// =============================================================================
+// Движение:    WASD, QEZC, стрелки
+// Действия:    I (инвентарь), ? (помощь), M (музыка), +/- (громкость)
+// Взаимодействие: T (торговец), B (алтарь), O (сундук)
+// Лестницы:    > (вниз), < (вверх)
+// Меню:        Y/Q/ESC (выход), N (новая игра), L (загрузка)
+// =============================================================================
 package game
 
 import (
@@ -179,16 +188,18 @@ func (g *Game) handleQuitConfirmInput() {
 	}
 }
 
-// handleDeathInput — обработка ввода на экране смерти (ИСПРАВЛЕНО ИМЯ)
+// handleDeathInput — обработка ввода на экране смерти
 func (g *Game) handleDeathInput() {
 	if g.screen == nil {
 		return
 	}
 	ev := g.screen.PollEvent()
-
 	switch ev := ev.(type) {
 	case *tcell.EventKey:
-		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC || ev.Rune() == 'q' || ev.Rune() == 'Q' {
+		// ✅ ИСПРАВЛЕНО: теперь Y, y, Q, q, ESC, Ctrl+C — все ведут к выходу
+		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC ||
+			ev.Rune() == 'y' || ev.Rune() == 'Y' ||
+			ev.Rune() == 'q' || ev.Rune() == 'Q' {
 			g.quit = true
 			return
 		}
@@ -240,7 +251,6 @@ func (g *Game) useItem(index int) {
 	if g.player == nil || index < 0 || index >= len(g.player.Inventory) {
 		return
 	}
-
 	item := g.player.Inventory[index]
 	if item == nil {
 		return
@@ -266,51 +276,31 @@ func (g *Game) useItem(index int) {
 		g.processTurn(0, 0) // Ход тратится
 
 	case ItemTypeWeapon:
-		// 🆕 МЕХАНИКА УЛУЧШЕНИЯ: если имя совпадает, улучшаем текущее оружие на +1
-		if g.player.EquippedWeapon != nil && g.player.EquippedWeapon.Name == item.Name {
-			g.player.EquippedWeapon.Value += 1
-			g.player.AttackVal += 1
-			g.consumeItem(index) // Расходуем 1 предмет из стопки (уменьшаем Count)
-			g.addMessage(fmt.Sprintf("Ваше оружие %s улучшено! Теперь ATK +%d", 
-				g.player.EquippedWeapon.Name, g.player.EquippedWeapon.Value))
-			g.logAndSync("ITEM_UPGRADE: Оружие %s улучшено до ATK +%d", 
-				g.player.EquippedWeapon.Name, g.player.EquippedWeapon.Value)
-		} else {
-			// Если имя не совпадает или ничего не экипировано — обычная замена
-			if g.player.EquippedWeapon != nil {
-				g.player.AttackVal -= g.player.EquippedWeapon.Value
-				g.player.Inventory = append(g.player.Inventory, g.player.EquippedWeapon)
-			}
-			g.player.EquippedWeapon = item
-			g.player.AttackVal += item.Value
-			g.player.Inventory = append(g.player.Inventory[:index], g.player.Inventory[index+1:]...)
-			g.addMessage(fmt.Sprintf("Вы экипировали %s (ATK +%d)!", item.Name, item.Value))
-			g.logAndSync("ITEM_EQUIP: Экипировано оружие %s", item.Name)
-		}
+		// ✅ АПГРЕЙД ИЛИ ЭКИПИРОВКА
+		// Метод EquipWeapon в player.go сам проверяет:
+		// - если слот пуст -> экипирует предмет
+		// - если слот занят -> улучшает текущее оружие на +1
+		g.player.EquipWeapon(item)
+		
+		// Безопасно расходуем предмет из инвентаря (уменьшаем Count или удаляем)
+		g.consumeItem(index)
+		
+		g.addMessage(fmt.Sprintf("Оружие обработано: %s (Текущий ATK бонус: %d)", item.Name, g.player.EquippedWeapon.Value))
+		g.logAndSync("ITEM_EQUIP/UPGRADE: Оружие %s", item.Name)
 		g.processTurn(0, 0)
 
 	case ItemTypeArmor:
-		// 🆕 МЕХАНИКА УЛУЧШЕНИЯ: если имя совпадает, улучшаем текущую броню на +1
-		if g.player.EquippedArmor != nil && g.player.EquippedArmor.Name == item.Name {
-			g.player.EquippedArmor.Value += 1
-			g.player.Defense += 1
-			g.consumeItem(index) // Расходуем 1 предмет из стопки (уменьшаем Count)
-			g.addMessage(fmt.Sprintf("Ваша броня %s улучшена! Теперь DEF +%d", 
-				g.player.EquippedArmor.Name, g.player.EquippedArmor.Value))
-			g.logAndSync("ITEM_UPGRADE: Броня %s улучшена до DEF +%d", 
-				g.player.EquippedArmor.Name, g.player.EquippedArmor.Value)
-		} else {
-			// Если имя не совпадает или ничего не экипировано — обычная замена
-			if g.player.EquippedArmor != nil {
-				g.player.Defense -= g.player.EquippedArmor.Value
-				g.player.Inventory = append(g.player.Inventory, g.player.EquippedArmor)
-			}
-			g.player.EquippedArmor = item
-			g.player.Defense += item.Value
-			g.player.Inventory = append(g.player.Inventory[:index], g.player.Inventory[index+1:]...)
-			g.addMessage(fmt.Sprintf("Вы экипировали %s (DEF +%d)!", item.Name, item.Value))
-			g.logAndSync("ITEM_EQUIP: Экипирована броня %s", item.Name)
-		}
+		// ✅ АПГРЕЙД ИЛИ ЭКИПИРОВКА
+		// Метод EquipArmor в player.go сам проверяет:
+		// - если слот пуст -> экипирует предмет
+		// - если слот занят -> улучшает текущую броню на +1
+		g.player.EquipArmor(item)
+		
+		// Безопасно расходуем предмет из инвентаря
+		g.consumeItem(index)
+		
+		g.addMessage(fmt.Sprintf("Броня обработана: %s (Текущий DEF бонус: %d)", item.Name, g.player.EquippedArmor.Value))
+		g.logAndSync("ITEM_EQUIP/UPGRADE: Броня %s", item.Name)
 		g.processTurn(0, 0)
 
 	case ItemTypeScroll:
@@ -320,7 +310,6 @@ func (g *Game) useItem(index int) {
 		g.addMessage("Этот предмет нельзя использовать напрямую.")
 	}
 }
-
 // consumeItem — уменьшает Count предмета или удаляет его из инвентаря
 func (g *Game) consumeItem(index int) {
 	if g.player == nil || index < 0 || index >= len(g.player.Inventory) {
@@ -566,8 +555,8 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 			}
 			g.addMessage("Здесь нет торговца.")
 			return
-		case 'P', 'p':
-			// P — молитва на алтаре (если стоим на алтаре)
+		case 'B', 'b':
+			// B — молитва на алтаре (если стоим на алтаре)
 			if altar := g.level.GetAltarAt(g.player.X, g.player.Y); altar != nil {
 				g.showAltarUI(altar)
 				g.processTurn(0, 0) // Молитва тратит ход
