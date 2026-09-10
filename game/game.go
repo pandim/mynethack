@@ -41,6 +41,7 @@ const (
 	StateDeathMenu                    // экран смерти игрока
 	StateHelp                         // экран помощи (вызывается клавишей ?)
 	StateMerchant                     // экран торговли с торговцем
+	StateVictory                      // 🆕 экран победы (возврат с Амулетом)
 )
 
 // =============================================================================
@@ -244,6 +245,10 @@ func (g *Game) Run() error {
 				// Экран торговли с торговцем (функции в interact.go)
 				g.renderMerchantScreen()
 				g.handleMerchantInput()
+			case StateVictory:
+				// 🆕 Экран победы
+				g.renderVictoryScreen()
+				g.handleVictoryInput()			
 			}
 		}()
 	}

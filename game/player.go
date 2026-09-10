@@ -64,13 +64,13 @@ func NewPlayer(x, y int) *Player {
 	return &Player{
 		X:         x,
 		Y:         y,
-		HP:        300,
-		MaxHP:     300,
+		HP:        30,
+		MaxHP:     30,
 		Level:     1,
-		XP:        300,
+		XP:        0,
 		Gold:      0,
-		AttackVal: 300,
-		Defense:   300,
+		AttackVal: 5,
+		Defense:   2,
 		Hunger:    0,
 		Inventory: make([]*Item, 0), // пустой инвентарь
 		HasAmulet: false,            // 🆕 ЭТАП 3: Амулет не подобран
@@ -114,7 +114,7 @@ func (p *Player) Move(dx, dy int) {
 	p.Y += dy
 
 	// Каждый шаг увеличивает голод
-	p.Hunger += 1
+	p.Hunger += 5
 
 	if p.logger != nil {
 		p.logger.Printf("MOVE: Игрок переместился на (%d, %d). Голод: %d", p.X, p.Y, p.Hunger)

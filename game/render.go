@@ -60,7 +60,27 @@ func (g *Game) drawCentered(y int, s string, style tcell.Style) {
 	x := (screenWidth - stringWidth(s)) / 2
 	g.drawString(x, y, s, style)
 }
-
+// drawRawString — рисует строку БЕЗ очистки строки экрана.
+// Используется для рисования текста внутри рамок,
+// чтобы не стирать правую границу рамки.
+//
+// В отличие от drawString, эта функция НЕ очищает строку до конца экрана.
+// Она просто записывает символы начиная с позиции x.
+func (g *Game) drawRawString(x, y int, s string, style tcell.Style) {
+	if g.screen == nil {
+		return
+	}
+	if y < 0 || y >= screenHeight {
+		return
+	}
+	col := x
+	for _, ch := range s {
+		if col >= 0 && col < screenWidth {
+			g.screen.SetContent(col, y, ch, nil, style)
+		}
+		col++
+	}
+}
 // render — основная функция отрисовки игрового экрана
 //
 // После отрисовки уровня вызывается renderBossHealthBar,
@@ -163,7 +183,11 @@ func (g *Game) renderStartMenu() {
 // renderQuitConfirm — отрисовка диалога подтверждения выхода
 //
 // 🆕 ОКНО ИЗ ДВОЙНЫХ ПОЛОСОК ASCII:
-// Рамка рисуется символами ╔═╗, ║, ╚═╝ для красивого оформления
+// Рамка рисуется символами ╔═╗, ║, ╚═╝ для красивого оформления.
+//
+// ⚠️ ВАЖНО: Рамка рисуется через drawString (полные строки),
+// а текст внутри — через drawRawString (без очистки),
+// чтобы не стирать правую границу рамки.
 func (g *Game) renderQuitConfirm() {
 	if g.screen == nil {
 		return
@@ -176,43 +200,43 @@ func (g *Game) renderQuitConfirm() {
 	style := tcell.StyleDefault.Foreground(tcell.ColorRed).Background(tcell.ColorBlack)
 
 	// Размеры окна
-	boxWidth := 40
+	boxWidth := 42
 	boxHeight := 7
 	boxX := (screenWidth - boxWidth) / 2
 	boxY := (screenHeight - boxHeight) / 2
 
-	// Рисуем верхнюю границу: ╔═...═╗
-	g.drawString(boxX, boxY, "╔", boxStyle)
-	for i := 1; i < boxWidth-1; i++ {
-		g.drawString(boxX+i, boxY, "═", boxStyle)
-	}
-	g.drawString(boxX+boxWidth-1, boxY, "╗", boxStyle)
-
-	// Рисуем средние строки: ║ ... ║
-	for i := 1; i < boxHeight-1; i++ {
-		g.drawString(boxX, boxY+i, "║", boxStyle)
-		g.drawString(boxX+boxWidth-1, boxY+i, "║", boxStyle)
-		// Заполняем внутреннюю часть пробелами
-		for j := 1; j < boxWidth-1; j++ {
-			g.drawString(boxX+j, boxY+i, " ", boxStyle)
+	// Вспомогательная функция для повторения строки
+	repeat := func(s string, n int) string {
+		result := ""
+		for i := 0; i < n; i++ {
+			result += s
 		}
+		return result
 	}
 
-	// Рисуем нижнюю границу: ╚═...═╝
-	g.drawString(boxX, boxY+boxHeight-1, "╚", boxStyle)
-	for i := 1; i < boxWidth-1; i++ {
-		g.drawString(boxX+i, boxY+boxHeight-1, "═", boxStyle)
+	// Верхняя граница: ╔═══...═══╗
+	// Рисуем всю строку целиком через drawString
+	g.drawString(boxX, boxY, "╔"+repeat("═", boxWidth-2)+"╗", boxStyle)
+
+	// Средние строки: ║     ...     ║
+	// Рисуем всю строку целиком через drawString
+	for i := 1; i < boxHeight-1; i++ {
+		g.drawString(boxX, boxY+i, "║"+repeat(" ", boxWidth-2)+"║", boxStyle)
 	}
-	g.drawString(boxX+boxWidth-1, boxY+boxHeight-1, "╝", boxStyle)
 
-	// Рисуем текст внутри окна
-	title := "Вы уверены, что хотите выйти?"
-	titleX := boxX + (boxWidth-stringWidth(title))/2
-	g.drawString(titleX, boxY+2, title, textStyle)
+	// Нижняя граница: ╚═══...═══╝
+	// Рисуем всю строку целиком через drawString
+	g.drawString(boxX, boxY+boxHeight-1, "╚"+repeat("═", boxWidth-2)+"╝", boxStyle)
 
-	options := "[Y] Да  [N] Нет"
-	optionsX := boxX + (boxWidth-stringWidth(options))/2
-	g.drawString(optionsX, boxY+4, options, style)
+	// Текст внутри рамки — рисуем через drawRawString (БЕЗ очистки),
+	// чтобы не стереть правую границу рамки
+	text1 := "Вы уверены, что хотите выйти?"
+	text1X := boxX + (boxWidth-stringWidth(text1))/2
+	g.drawRawString(text1X, boxY+2, text1, textStyle)
+
+	text2 := "[Y] Да  [N] Нет"
+	text2X := boxX + (boxWidth-stringWidth(text2))/2
+	g.drawRawString(text2X, boxY+4, text2, style)
 
 	g.screen.Show()
 }
@@ -220,7 +244,11 @@ func (g *Game) renderQuitConfirm() {
 // renderDeathScreen — отрисовка экрана смерти
 //
 // 🆕 ОКНО ИЗ ДВОЙНЫХ ПОЛОСОК ASCII:
-// Рамка рисуется символами ╔═╗, ║, ╚═╝ для красивого оформления
+// Рамка рисуется символами ╔═╗, ║, ╚═╝ для красивого оформления.
+//
+// ⚠️ ВАЖНО: Рамка рисуется через drawString (полные строки),
+// а текст внутри — через drawRawString (без очистки),
+// чтобы не стирать правую границу рамки.
 func (g *Game) renderDeathScreen() {
 	if g.screen == nil || g.player == nil {
 		return
@@ -238,43 +266,42 @@ func (g *Game) renderDeathScreen() {
 	boxX := (screenWidth - boxWidth) / 2
 	boxY := (screenHeight - boxHeight) / 2
 
-	// Рисуем верхнюю границу: ╔═...═╗
-	g.drawString(boxX, boxY, "╔", boxStyle)
-	for i := 1; i < boxWidth-1; i++ {
-		g.drawString(boxX+i, boxY, "═", boxStyle)
-	}
-	g.drawString(boxX+boxWidth-1, boxY, "╗", boxStyle)
-
-	// Рисуем средние строки: ║ ... ║
-	for i := 1; i < boxHeight-1; i++ {
-		g.drawString(boxX, boxY+i, "║", boxStyle)
-		g.drawString(boxX+boxWidth-1, boxY+i, "║", boxStyle)
-		// Заполняем внутреннюю часть пробелами
-		for j := 1; j < boxWidth-1; j++ {
-			g.drawString(boxX+j, boxY+i, " ", boxStyle)
+	// Вспомогательная функция для повторения строки
+	repeat := func(s string, n int) string {
+		result := ""
+		for i := 0; i < n; i++ {
+			result += s
 		}
+		return result
 	}
 
-	// Рисуем нижнюю границу: ╚═...═╝
-	g.drawString(boxX, boxY+boxHeight-1, "╚", boxStyle)
-	for i := 1; i < boxWidth-1; i++ {
-		g.drawString(boxX+i, boxY+boxHeight-1, "═", boxStyle)
-	}
-	g.drawString(boxX+boxWidth-1, boxY+boxHeight-1, "╝", boxStyle)
+	// Верхняя граница: ╔═══...═══╗
+	g.drawString(boxX, boxY, "╔"+repeat("═", boxWidth-2)+"╗", boxStyle)
 
-	// Рисуем текст внутри окна
+	// Средние строки: ║     ...     ║
+	for i := 1; i < boxHeight-1; i++ {
+		g.drawString(boxX, boxY+i, "║"+repeat(" ", boxWidth-2)+"║", boxStyle)
+	}
+
+	// Нижняя граница: ╚═══...═══╝
+	g.drawString(boxX, boxY+boxHeight-1, "╚"+repeat("═", boxWidth-2)+"╝", boxStyle)
+
+	// Текст внутри рамки — рисуем через drawRawString (БЕЗ очистки)
+	// Заголовок
 	title := "ВЫ ПОГИБЛИ!"
 	titleX := boxX + (boxWidth-stringWidth(title))/2
-	g.drawString(titleX, boxY+2, title, titleStyle)
+	g.drawRawString(titleX, boxY+2, title, titleStyle)
 
+	// Статистика
 	scoreMsg := fmt.Sprintf("Глубина: %d | Золото: %d | Уровень: %d",
 		g.depth, g.player.Gold, g.player.Level)
 	scoreX := boxX + (boxWidth-stringWidth(scoreMsg))/2
-	g.drawString(scoreX, boxY+4, scoreMsg, style)
+	g.drawRawString(scoreX, boxY+4, scoreMsg, style)
 
+	// Подсказка
 	prompt := `Вы хотите выйти "Y" или начать игру заново "N"?`
 	promptX := boxX + (boxWidth-stringWidth(prompt))/2
-	g.drawString(promptX, boxY+6, prompt, style)
+	g.drawRawString(promptX, boxY+6, prompt, style)
 
 	g.screen.Show()
 }
@@ -627,6 +654,50 @@ func (g *Game) renderHelpScreen() {
 	// Подсказки по навигации
 	g.drawCentered(screenHeight-3, "← → или A/D — перелистывание", style)
 	g.drawCentered(screenHeight-2, "Любая другая клавиша — возврат в игру", style)
+
+	g.screen.Show()
+}
+// =============================================================================
+// 🆕 ЭТАП 3: ЭКРАН ПОБЕДЫ
+// =============================================================================
+//
+// renderVictoryScreen — отрисовка экрана победы.
+// Показывается, когда игрок возвращается на уровень 1 с Амулетом Бездны.
+//
+// Проверка победы происходит в input.go → handleMovement → case '<'.
+// Состояние StateVictory определено в game.go.
+// Обработка ввода: input.go → handleVictoryInput (любая клавиша — выход).
+//
+// Экран показывает:
+//   - Поздравление с победой
+//   - Статистику: глубина, золото, уровень персонажа
+//   - Подсказку: любая клавиша — выход из игры
+func (g *Game) renderVictoryScreen() {
+	if g.screen == nil || g.player == nil {
+		return
+	}
+	g.screen.Clear()
+
+	// Стили для разных элементов экрана
+	titleStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
+	style := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
+	goldStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
+	greenStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen).Background(tcell.ColorBlack)
+
+	// Заголовок
+	g.drawCentered(4, "★ ПОБЕДА! ★", titleStyle)
+	g.drawCentered(6, "Вы вернулись на поверхность с Амулетом Бездны!", style)
+
+	// Статистика игры
+	scoreMsg := fmt.Sprintf("Глубина: %d | Золото: %d | Уровень: %d",
+		g.depth, g.player.Gold, g.player.Level)
+	g.drawCentered(9, scoreMsg, goldStyle)
+
+	// Поздравление
+	g.drawCentered(12, "Подземелье позади. Вы — легенда!", greenStyle)
+	
+	// Подсказка
+	g.drawCentered(18, "Нажмите любую клавишу для выхода", style)
 
 	g.screen.Show()
 }
