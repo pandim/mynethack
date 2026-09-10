@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -9,7 +10,7 @@ import (
 // =============================================================================
 // ОТРИСОВКА
 // =============================================================================
-//
+
 // drawString — рисует строку в заданной позиции экрана.
 //
 // ⚠️ ВАЖНО: перед записью символов очищает всю строку от позиции x до конца
@@ -75,14 +76,12 @@ func (g *Game) render() {
 	} else {
 		if g.level != nil && g.player != nil {
 			// Обновляем поле зрения (туман войны) и рисуем уровень
-			// Функция UpdateFOV определена в level_fov.go
-			// Функция Render определена в level_render.go
 			g.level.UpdateFOV(g.player.X, g.player.Y)
 			g.level.Render(g.screen, 1, 0)
+
 			// Полоска здоровья босса (рисуется поверх карты)
-			// Функция определена ниже в этом файле
 			g.renderBossHealthBar()
-			// Отрисовка игрока (метод определён в player.go)
+
 			g.player.Render(g.screen, 1, 0)
 		}
 	}
@@ -92,22 +91,71 @@ func (g *Game) render() {
 	g.screen.Show()
 }
 
+// =============================================================================
+// 🆕 СТАРТОВОЕ МЕНЮ С ASCII-АРТ ЗАГОЛОВКОМ
+// =============================================================================
+//
 // renderStartMenu — отрисовка стартового меню
+//
+// Показывается ВСЕГДА при запуске игры (не только при наличии сохранения).
+// Сверху отображается ASCII-арт заголовок "NETHACK-GO" (6 строк по 80 символов).
+//
+// Если сохранение есть — показывается опция [L] Загрузить игру.
+// Если сохранения нет — эта опция скрывается.
 func (g *Game) renderStartMenu() {
 	if g.screen == nil {
 		return
 	}
 	g.screen.Clear()
 
-	style := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
-	titleStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
+	// 🆕 ASCII-арт заголовок "NETHACK-GO"
+	// 6 строк, каждая ровно 80 символов (занимает всю ширину экрана)
+	asciiTitle := []string{
+		"███╗░░██╗███████╗████████╗██╗░░██╗░█████╗░░█████╗░██╗░░██╗░░░░░██████╗░░█████╗░",
+		"████╗░██║██╔════╝╚══██╔══╝██║░░██║██╔══██╗██╔══██╗██║░██╔╝░░░░██╔════╝░██╔══██╗",
+		"██╔██╗██║█████╗░░░░░██║░░░███████║███████║██║░░╚═╝█████═╝░███╗██║░░██╗░██║░░██║",
+		"██║╚████║██╔══╝░░░░░██║░░░██╔══██║██╔══██║██║░░██╗██╔═██╗░╚══╝██║░░╚██╗██║░░██║",
+		"██║░╚███║███████╗░░░██║░░░██║░░██║██║░░██║╚█████╔╝██║░╚██╗░░░░╚██████╔╝╚█████╔╝",
+		"╚═╝░░╚══╝╚══════╝░░░╚═╝░░░╚═╝░░╚═╝╚═╝░░╚═╝░╚════╝░╚═╝░░╚═╝░░░░░╚═════╝░░╚════╝░",
+	}
 
-	g.drawCentered(8, "NETHACK-GO", titleStyle)
-	g.drawCentered(10, "Найдено сохранение игры!", style)
-	g.drawCentered(13, "[L] Загрузить игру", style)
-	g.drawCentered(14, "[N] Новая игра", style)
-	g.drawCentered(15, "[M] Музыка вкл/выкл", style)
-	g.drawCentered(17, "[ESC] Выход", style)
+	// Стили
+	titleStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
+	style := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
+	highlightStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen).Background(tcell.ColorBlack)
+	dimStyle := tcell.StyleDefault.Foreground(tcell.ColorDarkGray).Background(tcell.ColorBlack)
+
+	// Рисуем ASCII-арт заголовок (строки 0-5, начиная с y=0)
+	for i, line := range asciiTitle {
+		g.drawString(0, i, line, titleStyle)
+	}
+
+	// Проверяем наличие сохранения
+	hasSave := false
+	if _, err := os.Stat(saveFile); err == nil {
+		hasSave = true
+	}
+
+	// Строка 7: статус сохранения
+	if hasSave {
+		g.drawCentered(7, "Найдено сохранение игры!", highlightStyle)
+	} else {
+		g.drawCentered(7, "Добро пожаловать в подземелье!", style)
+	}
+
+	// Строки 9+: опции меню
+	y := 9
+	if hasSave {
+		g.drawCentered(y, "[L] Загрузить игру", style)
+		y++
+	}
+	g.drawCentered(y, "[N] Новая игра", style)
+	y++
+	g.drawCentered(y, "[M] Музыка вкл/выкл", style)
+	y += 2
+
+	// Строка выхода — ближе к низу экрана
+	g.drawCentered(screenHeight-2, "[ESC] Выход", dimStyle)
 
 	g.screen.Show()
 }
@@ -147,85 +195,21 @@ func (g *Game) renderDeathScreen() {
 	g.screen.Show()
 }
 
-// =============================================================================
-// 🆕 ЭТАП 3: ЭКРАН ПОБЕДЫ
-// =============================================================================
-//
-// renderVictoryScreen — отрисовка экрана победы.
-// Показывается, когда игрок возвращается на уровень 1 с Амулетом Бездны.
-//
-// Проверка победы происходит в input.go → handleMovement → case '<'.
-// Состояние StateVictory определено в game.go.
-// Обработка ввода: input.go → handleVictoryInput (любая клавиша — выход).
-//
-// Экран показывает:
-//   - Поздравление с победой
-//   - Статистику: глубина, золото, уровень персонажа
-//   - Количество собранных реликций (дополнительная цель)
-//   - Подсказку: любая клавиша — выход из игры
-//
-// Метод CountRelics определён в player.go.
-// Константа RelicCount определена в item.go.
-func (g *Game) renderVictoryScreen() {
-	if g.screen == nil || g.player == nil {
-		return
-	}
-	g.screen.Clear()
-
-	// Стили для разных элементов экрана
-	titleStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
-	style := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
-	goldStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
-	greenStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen).Background(tcell.ColorBlack)
-
-	// Заголовок
-	g.drawCentered(4, "★ ПОБЕДА! ★", titleStyle)
-	g.drawCentered(6, "Вы вернулись на поверхность с Амулетом Бездны!", style)
-
-	// Статистика игры
-	// Поля depth, Gold, Level определены в game.go и player.go
-	scoreMsg := fmt.Sprintf("Глубина: %d | Золото: %d | Уровень: %d",
-		g.depth, g.player.Gold, g.player.Level)
-	g.drawCentered(9, scoreMsg, goldStyle)
-
-	// Количество собранных реликций (дополнительная цель игры)
-	// Метод CountRelics определён в player.go
-	// Константа RelicCount определена в item.go
-	relicCount := g.player.CountRelics()
-	relicMsg := fmt.Sprintf("Реликвии: %d из %d", relicCount, RelicCount)
-	if relicCount >= RelicCount {
-		// Все реликвии собраны — дополнительная цель выполнена!
-		relicMsg += " — ВСЕ СОБРАНЫ! Отличная работа!"
-		g.drawCentered(11, relicMsg, greenStyle)
-	} else {
-		g.drawCentered(11, relicMsg, style)
-	}
-
-	// Подсказка
-	g.drawCentered(15, "Подземелье позади. Вы — легенда!", style)
-	g.drawCentered(18, "Нажмите любую клавишу для выхода", style)
-
-	g.screen.Show()
-}
-
 // renderInventory — отрисовка инвентаря с экипировкой
 func (g *Game) renderInventory() {
 	if g.screen == nil || g.player == nil {
 		return
 	}
-
 	style := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
 	equipStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
 
 	g.drawString(1, 2, "=== ИНВЕНТАРЬ === (ESC - закрыть)", style)
 
 	y := 4
-
 	g.drawString(1, y, "--- Экипировка ---", equipStyle)
 	y++
 
 	// Показываем экипированное оружие
-	// Поле EquippedWeapon определено в player.go
 	if g.player.EquippedWeapon != nil {
 		g.drawString(1, y,
 			fmt.Sprintf("Оружие: %s (ATK +%d)", g.player.EquippedWeapon.Name, g.player.EquippedWeapon.Value),
@@ -236,7 +220,6 @@ func (g *Game) renderInventory() {
 	y++
 
 	// Показываем экипированную броню
-	// Поле EquippedArmor определено в player.go
 	if g.player.EquippedArmor != nil {
 		g.drawString(1, y,
 			fmt.Sprintf("Броня:  %s (DEF +%d)", g.player.EquippedArmor.Name, g.player.EquippedArmor.Value),
@@ -250,7 +233,6 @@ func (g *Game) renderInventory() {
 	y++
 
 	// Показываем предметы в инвентаре
-	// Поле Inventory определено в player.go
 	if len(g.player.Inventory) == 0 {
 		g.drawString(1, y, "Инвентарь пуст", style)
 	} else {
@@ -260,7 +242,6 @@ func (g *Game) renderInventory() {
 			}
 			text := fmt.Sprintf("%d. %s", i+1, item.Name)
 			// Показываем количество предметов в стопке
-			// Поле Count определено в item.go
 			if item.Count > 1 {
 				text += fmt.Sprintf(" x%d", item.Count)
 			}
@@ -276,18 +257,12 @@ func (g *Game) renderInventory() {
 }
 
 // renderStatus — отрисовка статус-бара внизу экрана
-//
-// 🆕 ЭТАП 3: ИНДИКАТОР АМУЛЕТА БЕЗДНЫ
-// Если игрок несёт Амулет Бездны, в статус-баре показывается "[АМУЛЕТ]"
-// золотым цветом. Это напоминает игроку, что нужно вернуться на уровень 1.
-// Поле HasAmulet определено в player.go.
 func (g *Game) renderStatus() {
 	if g.screen == nil || g.player == nil {
 		return
 	}
 
 	// Цвет HP зависит от процента здоровья
-	// Поля HP, MaxHP определены в player.go
 	hpStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow)
 	var hpPercent float64
 	if g.player.MaxHP > 0 {
@@ -300,7 +275,6 @@ func (g *Game) renderStatus() {
 	}
 
 	// Статус голода
-	// Поле Hunger определено в player.go
 	hungerStatus := "Сыт"
 	hungerColor := tcell.ColorWhite
 	if g.player.Hunger > 500 && g.player.Hunger <= 900 {
@@ -312,7 +286,6 @@ func (g *Game) renderStatus() {
 	}
 
 	// Рисуем все показатели статуса
-	// Поля определены в player.go и game.go
 	g.drawString(1, screenHeight-1,
 		fmt.Sprintf("HP:%d/%d", g.player.HP, g.player.MaxHP), hpStyle)
 	g.drawString(12, screenHeight-1,
@@ -332,7 +305,6 @@ func (g *Game) renderStatus() {
 		tcell.StyleDefault.Foreground(tcell.ColorYellow))
 
 	// Иконка музыки: ♪ если играет, X если выключена
-	// Поля musicEnabled, musicCtrl определены в game.go
 	musicStatus := "♪"
 	musicColor := tcell.ColorAqua
 	if !g.musicEnabled || (g.musicCtrl != nil && g.musicCtrl.Paused) {
@@ -348,20 +320,7 @@ func (g *Game) renderStatus() {
 	hungerStyle := tcell.StyleDefault.Foreground(hungerColor)
 	g.drawString(66, screenHeight-1, hungerText, hungerStyle)
 
-	// 🆕 ЭТАП 3: Индикатор Амулета Бездны
-	// Если игрок несёт Амулет, показываем "[АМУЛЕТ]" золотым цветом
-	// Поле HasAmulet определено в player.go
-	// Это напоминает игроку, что нужно вернуться на уровень 1 для победы
-	if g.player.HasAmulet {
-		amuletStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
-		// Рисуем над статус-баром, чтобы не мешать основным показателям
-		// Позиция: правый верхний угол экрана
-		g.drawString(screenWidth-20, 0, "[АМУЛЕТ БЕЗДНЫ] → Ур.1!", amuletStyle)
-	}
-
 	// Индикатор совпадения лестниц (редкая ситуация, когда лестницы на одной клетке)
-	// Функция IsStairsOverlap определена в level_stairs.go
-	// Поля StairsDownX, StairsDownY определены в level.go
 	if g.level != nil && g.level.IsStairsOverlap() &&
 		g.player.X == g.level.StairsDownX &&
 		g.player.Y == g.level.StairsDownY {
@@ -371,9 +330,6 @@ func (g *Game) renderStatus() {
 }
 
 // renderMessages — отрисовка последних сообщений
-//
-// Поле messages определено в game.go.
-// Константа messageHeight определена в game.go.
 func (g *Game) renderMessages() {
 	if g.screen == nil {
 		return
@@ -390,9 +346,6 @@ func (g *Game) renderMessages() {
 }
 
 // addMessage — добавляет сообщение в очередь (старые удаляются)
-//
-// Поле messages определено в game.go.
-// Константа messageHeight определена в game.go.
 func (g *Game) addMessage(msg string) {
 	g.messages = append(g.messages, msg)
 	if len(g.messages) > messageHeight {
@@ -418,24 +371,18 @@ func (g *Game) addMessage(msg string) {
 //   - Красный: < 25%
 //
 // Если босс находится у верхнего края карты (boss.Y == 0), полоска не рисуется.
-//
-// Функция GetAliveBoss определена в level_boss.go.
-// Поля Tiles, Height, Width определены в level.go.
-// Поля HP, MaxHP определены в monster.go.
 func (g *Game) renderBossHealthBar() {
 	if g.screen == nil || g.level == nil {
 		return
 	}
 
 	// Получаем живого босса на уровне
-	// Функция определена в level_boss.go
 	boss := g.level.GetAliveBoss()
 	if boss == nil {
 		return
 	}
 
 	// Проверяем, что босс в пределах карты
-	// Поля Height, Width определены в level.go
 	if boss.Y < 0 || boss.Y >= g.level.Height || boss.X < 0 || boss.X >= g.level.Width {
 		return
 	}
@@ -445,7 +392,6 @@ func (g *Game) renderBossHealthBar() {
 
 	// Полоска здоровья отображается только если босс виден
 	// (находится в радиусе зрения игрока)
-	// Поле Visible определено в level.go (структура Tile)
 	if !g.level.Tiles[boss.Y][boss.X].Visible {
 		return
 	}
@@ -458,7 +404,6 @@ func (g *Game) renderBossHealthBar() {
 	barX := boss.X - 3 + offsetX // центрируем полоску над боссом (ширина 7)
 
 	// Если босс у верхнего края карты, полоска не рисуется
-	// Константа screenHeight определена в game.go
 	if barY < 0 || barY >= screenHeight {
 		return
 	}
@@ -467,7 +412,6 @@ func (g *Game) renderBossHealthBar() {
 	barWidth := 7
 
 	// Процент здоровья босса
-	// Поля HP, MaxHP определены в monster.go
 	hpPercent := float64(boss.HP) / float64(boss.MaxHP)
 	filledWidth := int(hpPercent * float64(barWidth))
 	if filledWidth < 0 {
@@ -486,7 +430,6 @@ func (g *Game) renderBossHealthBar() {
 	}
 
 	// Рисуем полоску здоровья
-	// Константа screenWidth определена в game.go
 	style := tcell.StyleDefault.
 		Foreground(color).
 		Background(tcell.ColorBlack)
@@ -513,13 +456,6 @@ func (g *Game) renderBossHealthBar() {
 //
 // Перелистывание: стрелки ← → или клавиши A/D.
 // Любая другая клавиша — возврат в игру.
-//
-// 🆕 ЭТАП 3: Легенда символов обновлена с учётом новых предметов и объектов:
-//   - Реликвии, свитки, ключи, Амулет Бездны (Этап 1)
-//   - Король Бездны (Этап 3)
-//
-// Константы helpPageControls, helpPageSymbols, helpPageCount определены в game.go.
-// Константа screenHeight определена в game.go.
 func (g *Game) renderHelpScreen() {
 	if g.screen == nil {
 		return
@@ -530,7 +466,6 @@ func (g *Game) renderHelpScreen() {
 	style := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
 	keyStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Background(tcell.ColorBlack)
 
-	// Поле helpPage определено в game.go
 	if g.helpPage == helpPageControls {
 		// =====================================================================
 		// СТРАНИЦА 1: УПРАВЛЕНИЕ
@@ -538,8 +473,6 @@ func (g *Game) renderHelpScreen() {
 		g.drawCentered(2, "=== УПРАВЛЕНИЕ ===", titleStyle)
 
 		// Список клавиш управления
-		// 🆕 ЭТАП 1: Добавлены клавиши для новых механик (торговля реликвиями)
-		// 🆕 ЭТАП 3: Добавлена информация о цели игры (Амулет Бездны)
 		lines := []struct {
 			key  string
 			desc string
@@ -568,18 +501,13 @@ func (g *Game) renderHelpScreen() {
 			g.drawString(22, y, "- "+line.desc, style)
 			y++
 		}
-
 	} else {
 		// =====================================================================
 		// СТРАНИЦА 2: СИМВОЛЫ
 		// =====================================================================
-		// 🆕 ЭТАП 1 и 3: Легенда обновлена с новыми предметами и объектами
 		g.drawCentered(2, "=== СИМВОЛЫ ===", titleStyle)
 
 		// Легенда символов
-		// 🆕 Добавлены: реликвии, свитки, ключи, Амулет, Король Бездны
-		// Символы предметов определены в level_spawn.go (spawnRelics, spawnScrolls и т.д.)
-		// Символ Короля Бездны определён в level_boss.go (spawnFinalBoss)
 		symbols := []struct {
 			sym  string
 			desc string
@@ -590,16 +518,10 @@ func (g *Game) renderHelpScreen() {
 			{"±", "Лестница вверх И вниз (совмещённая)"},
 			{"g o s r", "Монстры (гоблин, орк, скелет, крыса)"},
 			{"! / [ $ %", "Предметы (зелье, меч, щит, золото, еда)"},
-			{"* ! ] / +", "🆕 Реликвии (продажа торговцу, соберите все 5!)"},
-			{"?", "🆕 Свитки (одноразовые заклинания)"},
-			{"k", "🆕 Ключ (открывает золотые сундуки)"},
-			{"&", "🆕 Амулет Бездны (верните на уровень 1!)"},
 			{"M", "Торговец (T — торговля)"},
 			{"_", "Алтарь (B — благословение)"},
 			{"&", "Сундук (O — открыть)"},
-			{"&", "🆕 Золотой сундук (нужен ключ, O — открыть)"},
 			{"G N D B", "Боссы (охраняют лестницу, каждые 6 уровней)"},
-			{"K", "🆕 Король Бездны (финальный босс, уровень 25)"},
 		}
 
 		y := 4
@@ -607,20 +529,14 @@ func (g *Game) renderHelpScreen() {
 			g.drawString(5, y, s.sym, keyStyle)
 			g.drawString(22, y, "- "+s.desc, style)
 			y++
-			// Не выходим за пределы экрана
-			// Константа screenHeight определена в game.go
-			if y >= screenHeight-5 {
-				break
-			}
 		}
 	}
 
 	// =========================================================================
 	// ИНДИКАТОР СТРАНИЦЫ И ПОДСКАЗКИ (общие для обеих страниц)
 	// =========================================================================
+
 	// Индикатор текущей страницы
-	// Поле helpPage определено в game.go
-	// Константа helpPageCount определена в game.go
 	pageIndicator := fmt.Sprintf("Страница %d/%d", g.helpPage+1, helpPageCount)
 	g.drawCentered(screenHeight-4, pageIndicator, titleStyle)
 
