@@ -96,6 +96,7 @@ type Level struct {
 //  6. Спавним торговцев (на каждом 5-м уровне)
 //  7. Спавним алтари (на каждом уровне)
 //  8. Спавним сундуки (на каждом уровне)
+//  9. Спавним боссов (на каждом 6-м уровне)
 func NewLevel(width, height int, depth int, logger ...*log.Logger) *Level {
 	var lgr *log.Logger
 	if len(logger) > 0 {
@@ -125,7 +126,7 @@ func NewLevel(width, height int, depth int, logger ...*log.Logger) *Level {
 		Altars:      make([]*Altar, 0),
 		Chests:      make([]*Chest, 0),
 		Rooms:       make([]Room, 0),
-		VisitCount:  1, // 🆕 Первое посещение уровня
+		VisitCount:  1, // 🆕 ЭТАП 2: Первое посещение уровня
 		logger:      lgr,
 		StairsUpX:   -1, // -1 означает "не размещена"
 		StairsUpY:   -1,
