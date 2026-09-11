@@ -29,19 +29,17 @@ const (
 
 // =============================================================================
 // СОСТОЯНИЯ ИГРЫ
-// Игра может находиться в одном из состояний, и в зависимости от состояния
-// обрабатываются разные экраны и ввод пользователя.
 // =============================================================================
 type GameState int
 
 const (
 	StatePlaying     GameState = iota // обычный игровой процесс
-	StateStartMenu                    // стартовое меню (показывается всегда)
+	StateStartMenu                    // стартовое меню
 	StateQuitConfirm                  // подтверждение выхода
 	StateDeathMenu                    // экран смерти игрока
-	StateHelp                         // экран помощи (вызывается клавишей ?)
+	StateHelp                         // экран помощи
 	StateMerchant                     // экран торговли с торговцем
-	StateVictory                      // 🆕 экран победы (возврат с Амулетом)
+	StateVictory                      // экран победы
 )
 
 // =============================================================================
@@ -50,45 +48,44 @@ const (
 // на один экран (высота 24 строки). Перелистывание: стрелки ← → или A/D.
 // =============================================================================
 const (
-	helpPageControls = 0 // страница 1: управление (клавиши)
-	helpPageSymbols  = 1 // страница 2: символы (легенда карты)
-	helpPageCount    = 2 // общее количество страниц
+	helpPageControls  = 0 // страница 1: управление (клавиши)
+	helpPageSymbols   = 1 // страница 2: символы (легенда карты)
+	helpPageMechanics = 2 // страница 3: механики (свитки, реликвии, боссы)
+	helpPageCount     = 3 // общее количество страниц
 )
 
 // =============================================================================
 // ОСНОВНАЯ СТРУКТУРА ИГРЫ
 // =============================================================================
 type Game struct {
-	// Экран и отображение
-	screen        tcell.Screen     // терминальный экран (библиотека tcell)
-	player        *Player          // игрок
-	level         *Level           // текущий уровень подземелья
-	levels        map[int]*Level   // кэш всех уровней (чтобы не генерировать заново при возврате)
-	depth         int              // текущая глубина (номер уровня)
-	messages      []string         // последние сообщения для отображения
-	quit          bool             // флаг выхода из игры
-	showInventory bool             // открыт ли инвентарь
-	helpPage      int              // текущая страница экрана помощи (0 = управление, 1 = символы)
-	logger        *log.Logger      // логгер для отладки
-	logFileHandle *os.File         // файловый дескриптор лога
-	state         GameState        // текущее состояние игры
+	screen        tcell.Screen     
+	player        *Player          
+	level         *Level           
+	levels        map[int]*Level   
+	depth         int              
+	messages      []string         
+	quit          bool             
+	showInventory bool             
+	helpPage      int              
+	logger        *log.Logger      
+	logFileHandle *os.File         
+	state         GameState        
 
 	// Торговец
-	currentMerchant *Merchant // текущий торговец (для экрана торговли)
+	currentMerchant     *Merchant 
+	pendingRelicSellIndex int     // 🆕 Индекс реликвии, ожидающей подтверждения продажи (-1 если нет)
 
 	// Музыка
-	musicStreamer beep.StreamSeekCloser // стример аудио (нужен для закрытия)
-	musicVolume   *linearVolume         // наша обёртка громкости (определена в audio.go)
-	musicCtrl     *beep.Ctrl            // контроллер паузы/возобновления
-	musicFileH    *os.File              // файловый дескриптор mp3
-	musicEnabled  bool                  // включена ли музыка
-	musicLevel    float64               // 0.0..1.0 (линейная громкость для пользователя)
+	musicStreamer beep.StreamSeekCloser 
+	musicVolume   *linearVolume         
+	musicCtrl     *beep.Ctrl            
+	musicFileH    *os.File              
+	musicEnabled  bool                  
+	musicLevel    float64               
 }
 
 // =============================================================================
 // СОБЫТИЕ МИГАНИЯ
-// Служебное событие для периодической перерисовки экрана (мигание символа @).
-// Генерируется таймером каждые 250 мс.
 // =============================================================================
 type blinkEvent struct {
 	when time.Time
@@ -98,7 +95,6 @@ func (e *blinkEvent) When() time.Time {
 	return e.when
 }
 
-// stringWidth — считает видимую ширину строки (учитывает многобайтовые символы)
 func stringWidth(s string) int {
 	return utf8.RuneCountInString(s)
 }
@@ -110,7 +106,6 @@ func NewGame() *Game {
 	var f *os.File
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 
-	// Пытаемся открыть файл логов. Если не получится — пишем в stderr.
 	fh, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		fmt.Println("Ошибка открытия файла логов:", err)
@@ -122,18 +117,17 @@ func NewGame() *Game {
 	logger.Println("=== Запуск игры ===")
 
 	return &Game{
-		messages:      make([]string, 0),
-		depth:         1,
-		logger:        logger,
-		logFileHandle: f,
-		state:         StatePlaying,
-		musicEnabled:  true,
-		musicLevel:    0.3, // 30% — комфортная фоновая громкость по умолчанию
+		messages:              make([]string, 0),
+		depth:                 1,
+		logger:                logger,
+		logFileHandle:         f,
+		state:                 StatePlaying,
+		musicEnabled:          true,
+		musicLevel:            0.3,
+		pendingRelicSellIndex: -1, // 🆕 Инициализация флага подтверждения
 	}
 }
 
-// logAndSync — записывает в лог и сразу сбрасывает буфер на диск.
-// Важно для отладки: если игра упадёт, лог не потеряется.
 func (g *Game) logAndSync(format string, v ...interface{}) {
 	if g.logger != nil {
 		g.logger.Printf(format, v...)
@@ -145,7 +139,6 @@ func (g *Game) logAndSync(format string, v ...interface{}) {
 
 // =============================================================================
 // ТАЙМЕР МИГАНИЯ
-// Периодически отправляет события перерисовки для мигания символа игрока (@).
 // =============================================================================
 func (g *Game) startBlinkTicker() func() {
 	stopCh := make(chan struct{})
@@ -168,10 +161,9 @@ func (g *Game) startBlinkTicker() func() {
 		}
 	}()
 
-	// Возвращаем функцию остановки (можно вызвать только один раз благодаря `sync.Once`)
 	return func() {
 		once.Do(func() { close(stopCh) })
-		<-doneCh // ждём завершения горутины
+		<-doneCh 
 	}
 }
 
@@ -183,7 +175,6 @@ func (g *Game) Run() error {
 		defer g.logFileHandle.Close()
 	}
 
-	// Создаём и инициализируем терминальный экран
 	var err error
 	g.screen, err = tcell.NewScreen()
 	if err != nil {
@@ -194,27 +185,19 @@ func (g *Game) Run() error {
 	}
 	defer g.screen.Fini()
 
-	// Запускаем музыку (и гарантированно останавливаем при выходе)
-	// Функции initMusic/stopMusic определены в audio.go
 	g.initMusic()
 	defer g.stopMusic()
 
-	// Запускаем таймер мигания
 	stopBlink := g.startBlinkTicker()
 	defer stopBlink()
 
 	g.screen.SetStyle(tcell.StyleDefault)
 	g.screen.Clear()
 
-	// 🆕 Всегда показываем стартовое меню с ASCII-арт заголовком.
-	// Меню проверяет наличие сохранения и показывает соответствующие опции.
-	// Функция startNewGame вызывается из handleStartMenuInput при выборе [N].
 	g.state = StateStartMenu
 
-	// Главный игровой цикл
 	for !g.quit {
 		func() {
-			// Защита от паник: если что-то пошло не так, логируем и выходим
 			defer func() {
 				if r := recover(); r != nil {
 					g.logAndSync("CRITICAL ERROR (Recovered): %v", r)
@@ -223,8 +206,6 @@ func (g *Game) Run() error {
 				}
 			}()
 
-			// В зависимости от состояния обрабатываем разные экраны
-			// Функции обработки определены в render.go, input.go, interact.go
 			switch g.state {
 			case StatePlaying:
 				g.render()
@@ -242,11 +223,9 @@ func (g *Game) Run() error {
 				g.renderHelpScreen()
 				g.handleHelpInput()
 			case StateMerchant:
-				// Экран торговли с торговцем (функции в interact.go)
 				g.renderMerchantScreen()
 				g.handleMerchantInput()
 			case StateVictory:
-				// 🆕 Экран победы
 				g.renderVictoryScreen()
 				g.handleVictoryInput()			
 			}
