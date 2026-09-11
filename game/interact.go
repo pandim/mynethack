@@ -163,8 +163,8 @@ func (g *Game) buyItem(index int) {
 	g.player.Gold -= item.Price
 	g.addToInventoryWithStack(item)
 	g.currentMerchant.Items = append(g.currentMerchant.Items[:index], g.currentMerchant.Items[index+1:]...)
-	g.addMessage(fmt.Sprintf("Куплено %s за %d золота.", item.Name, item.Price))
-	g.logAndSync("MERCHANT: Куплено %s за %d золота", item.Name, item.Price)
+	g.addMessage(fmt.Sprintf("Вы купили %s за %d золота.", item.Name, item.Price))
+	g.logAndSync("MERCHANT: Вы купили %s за %d золота", item.Name, item.Price)
 
 	if len(g.currentMerchant.Items) == 0 {
 		g.state = StatePlaying
@@ -200,8 +200,8 @@ func (g *Game) sellRelic(relicListIndex int) {
 	g.player.Gold += sellPrice
 	g.player.Inventory = append(g.player.Inventory[:relicInventoryIndex], g.player.Inventory[relicInventoryIndex+1:]...)
 	
-	g.addMessage(fmt.Sprintf("Продано %s за %d золота.", relic.Name, sellPrice))
-	g.logAndSync("MERCHANT: Продано %s за %d золота", relic.Name, sellPrice)
+	g.addMessage(fmt.Sprintf("Вы продали %s за %d золота.", relic.Name, sellPrice))
+	g.logAndSync("MERCHANT: Вы продали %s за %d золота", relic.Name, sellPrice)
 }
 
 // =============================================================================

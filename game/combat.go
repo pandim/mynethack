@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"math/rand"
+	"strings" // ДОБАВЛЕНО для getGenitiveName
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -210,7 +211,8 @@ func (g *Game) pickupItem(item *Item) {
 	if item.Type == ItemTypeGold {
 		g.player.Gold += item.Value
 		g.logAndSync("GOLD: Подобрано %d золота. Всего: %d", item.Value, g.player.Gold)
-		g.addMessage(fmt.Sprintf("Подобрано %s (%d золота)", item.Name, item.Value))
+		// ИСПРАВЛЕНО: "Вы подобрали" вместо "Подобрано"
+		g.addMessage(fmt.Sprintf("Вы подобрали %s (%d золота)", item.Name, item.Value))
 		g.level.RemoveItem(item)
 		return
 	}
@@ -225,12 +227,74 @@ func (g *Game) pickupItem(item *Item) {
 	g.addToInventoryWithStack(item)
 	g.logAndSync("ITEM_PICKUP: Подобран предмет %s", item.Name)
 	g.level.RemoveItem(item)
-	g.addMessage(fmt.Sprintf("Подобрано %s", item.Name))
+	// ИСПРАВЛЕНО: "Вы подобрали" вместо "Подобрано"
+	g.addMessage(fmt.Sprintf("Вы подобрали %s", item.Name))
+}
+
+// =============================================================================
+// СКЛОНЕНИЕ ИМЁН, БОЕВЫЕ КЛИЧИ И ФРАЗЫ ПРИ СМЕРТИ
+// =============================================================================
+
+func getGenitiveName(name string) string {
+	genitiveMap := map[string]string{
+		"Гоблин":           "гоблина",
+		"Орк":              "орка",
+		"Скелет":           "скелета",
+		"Крыса":            "крысы",
+		"Ловушка":          "ловушки",
+		"Вождь Гоблинов":   "вождя гоблинов",
+		"Некромант":        "некроманта",
+		"Древний Дракон":   "древнего дракона",
+		"Повелитель Бездны":"повелителя бездны",
+		"Король Бездны":    "короля бездны",
+	}
+	if gen, ok := genitiveMap[name]; ok {
+		return gen
+	}
+	return strings.ToLower(name)
+}
+
+func getBattleCry(name string) string {
+	cries := map[string][]string{
+		"Гоблин": {"Резать! Кусать! Моё!", "Смерть длинноногому!", "Твои кости станут моими!"},
+		"Орк": {"Сокрушу твои кости!", "Слабым здесь не место!", "Умри, ничтожество!"},
+		"Скелет": {"Плоть гниёт, а кости вечны...", "Присоединяйся к вечному сну.", "Твоё тепло скоро угаснет."},
+		"Крыса": {"Грызть! Рвать! Жрать!", "Нас много, а ты один!"},
+		"Вождь Гоблинов": {"Разорвать его на части, мои верные!", "Я съем твоё сердце на завтрак!"},
+		"Некромант": {"Твоя душа станет моей марионеткой!", "Падая, ты послужишь мне лучше, чем живым."},
+		"Древний Дракон": {"Ты смеешь бросать вызов огню веков?!", "Сгори в моём пламени, ничтожная искра!"},
+		"Повелитель Бездны": {"Бездна смотрит на тебя, и она голодна.", "Твой свет погаснет здесь навсегда."},
+		"Король Бездны": {"Я — конец всего сущего. Смирись!", "Твоя надежда — лишь иллюзия перед лицом вечной тьмы."},
+	}
+	if phrases, ok := cries[name]; ok && len(phrases) > 0 {
+		return phrases[rand.Intn(len(phrases))]
+	}
+	return ""
+}
+
+func getDeathPhrase(name string) string {
+	phrases := map[string][]string{
+		"Гоблин": {"Нет! Моё золото!", "Я вернусь...", "Мама!"},
+		"Орк": {"Слава Оркам!", "Ты ещё заплатишь...", "Грррр..."},
+		"Скелет": {"Кости... крошатся...", "Во прах...", "Тьма забирает меня..."},
+		"Крыса": {"Писк...", "Грызть... больше не могу..."},
+		"Ловушка": {"Щёлк... и тишина.", "Механизм сломан..."},
+		"Вождь Гоблинов": {"Племя... не простит тебя!"},
+		"Некромант": {"Смерть... это лишь начало... моего возвращения..."},
+		"Древний Дракон": {"Мой огонь... погаснет... но не навсегда..."},
+		"Повелитель Бездны": {"Бездна... ждёт тебя... смертный..."},
+		"Король Бездны": {"Ты не победил... ты лишь отсрочил конец..."},
+	}
+	if p, ok := phrases[name]; ok && len(p) > 0 {
+		return p[rand.Intn(len(p))]
+	}
+	return ""
 }
 
 // =============================================================================
 // АТАКА МОНСТРА
 // =============================================================================
+// ИСПРАВЛЕНО: убраны лишние пробелы в имени константы, чтобы код компилировался
 const FinalBossName = "Король Бездны"
 
 func (g *Game) attackMonster(monster *Monster) {
@@ -239,7 +303,14 @@ func (g *Game) attackMonster(monster *Monster) {
 	}
 	damage := g.player.Attack()
 	monster.TakeDamage(damage)
-	g.addMessage(fmt.Sprintf("Вы атаковали %s на %d урона!", monster.Name, damage))
+
+	// 🆕 БОЕВОЙ КЛИЧ
+	cry := getBattleCry(monster.Name)
+	if cry != "" {
+		g.addMessage(fmt.Sprintf("%s кричит: \"%s\" и атакует на %d урона!", monster.Name, cry, damage))
+	} else {
+		g.addMessage(fmt.Sprintf("Вы атаковали %s на %d урона!", monster.Name, damage))
+	}
 
 	if monster.HP <= 0 {
 		g.level.RemoveMonster(monster)
@@ -251,23 +322,44 @@ func (g *Game) attackMonster(monster *Monster) {
 		if monster.Name == "Ловушка" || monster.Name == "Крыса" {
 			deathVerb = "умерла"
 		}
+		
+		// 🆕 ФРАЗА ПРИ СМЕРТИ
+		deathPhrase := getDeathPhrase(monster.Name)
 
 		if monster.Name == FinalBossName {
 			amulet := NewItem(monster.X, monster.Y, "Амулет Бездны", ItemTypeAmulet, 0, '&', tcell.ColorYellow)
 			g.level.Items = append(g.level.Items, amulet)
-			g.addMessage("⚔ КОРОЛЬ БЕЗДНЫ ПОВЕРЖЕН!")
+			if deathPhrase != "" {
+				g.addMessage(fmt.Sprintf("⚔ КОРОЛЬ БЕЗДНЫ ПОВЕРЖЕН со словами: \"%s\"!", deathPhrase))
+			} else {
+				g.addMessage("⚔ КОРОЛЬ БЕЗДНЫ ПОВЕРЖЕН!")
+			}
 			g.addMessage("Амулет Бездны появился на его месте! Подберите его!")
 			g.logAndSync("FINAL_BOSS_KILLED: Амулет Бездны заспавнен на (%d, %d)", monster.X, monster.Y)
 		} else if monster.IsBoss {
-			g.addMessage(fmt.Sprintf("⚔ %s ПОВЕРЖЕН! Путь к лестнице открыт!", monster.Name))
+			if deathPhrase != "" {
+				g.addMessage(fmt.Sprintf("⚔ %s ПОВЕРЖЕН со словами: \"%s\"! Путь к лестнице открыт!", monster.Name, deathPhrase))
+			} else {
+				g.addMessage(fmt.Sprintf("⚔ %s ПОВЕРЖЕН! Путь к лестнице открыт!", monster.Name))
+			}
 		} else if leveledUp {
-			g.addMessage(fmt.Sprintf("%s %s! +%d золота, +%d опыта. Уровень повышен до %d!", monster.Name, deathVerb, monster.GoldValue, monster.XPValue, g.player.Level))
+			if deathPhrase != "" {
+				g.addMessage(fmt.Sprintf("%s %s со словами: \"%s\"! +%d золота, +%d опыта. Уровень повышен до %d!", monster.Name, deathVerb, deathPhrase, monster.GoldValue, monster.XPValue, g.player.Level))
+			} else {
+				g.addMessage(fmt.Sprintf("%s %s! +%d золота, +%d опыта. Уровень повышен до %d!", monster.Name, deathVerb, monster.GoldValue, monster.XPValue, g.player.Level))
+			}
 		} else {
-			g.addMessage(fmt.Sprintf("%s %s! +%d золота, +%d опыта.", monster.Name, deathVerb, monster.GoldValue, monster.XPValue))
+			if deathPhrase != "" {
+				g.addMessage(fmt.Sprintf("%s %s со словами: \"%s\"! +%d золота, +%d опыта.", monster.Name, deathVerb, deathPhrase, monster.GoldValue, monster.XPValue))
+			} else {
+				g.addMessage(fmt.Sprintf("%s %s! +%d золота, +%d опыта.", monster.Name, deathVerb, monster.GoldValue, monster.XPValue))
+			}
 		}
 
 		// 🆕 ШАНС ВЫПАДЕНИЯ КЛЮЧЕЙ И СВИТКОВ С МОНСТРОВ
 		lootRoll := rand.Intn(100)
+		monsterGenitive := getGenitiveName(monster.Name)
+		
 		if lootRoll < 5 { // 5% шанс на свиток
 			scrollTypes := []struct {
 				sType int
@@ -280,15 +372,14 @@ func (g *Game) attackMonster(monster *Monster) {
 				{ScrollBanishment, "Свиток изгнания", tcell.ColorRed},
 			}
 			st := scrollTypes[rand.Intn(len(scrollTypes))]
-			// Используем символ '~' и уникальный цвет
 			scroll := NewScroll(0, 0, st.sType, st.name, '~', st.color)
 			g.addToInventoryWithStack(scroll)
-			g.addMessage(fmt.Sprintf("С %s выпал %s!", monster.Name, st.name))
+			g.addMessage(fmt.Sprintf("С %s выпал %s!", monsterGenitive, st.name))
 			g.logAndSync("LOOT: С %s выпал %s", monster.Name, st.name)
 		} else if lootRoll < 20 { // 15% шанс на ключ (значения 5-19)
 			key := NewItem(0, 0, "Ключ", ItemTypeKey, 0, 'k', tcell.ColorAqua)
 			g.addToInventoryWithStack(key)
-			g.addMessage(fmt.Sprintf("С %s выпал Ключ!", monster.Name))
+			g.addMessage(fmt.Sprintf("С %s выпал Ключ!", monsterGenitive))
 			g.logAndSync("LOOT: С %s выпал Ключ", monster.Name)
 		}
 	}

@@ -108,6 +108,29 @@ func (g *Game) render() {
 
 	g.renderStatus()
 	g.renderMessages()
+	
+	// 🆕 Проверка критического HP и сытости
+	if g.player != nil {
+		// Проверка низкого HP
+		if g.player.HP <= 5 && !g.wasInCriticalHP {
+			g.popupMessage = "Тебе надо срочно подлечиться, ты еле волочишь ноги!"
+			g.wasInCriticalHP = true
+		} else if g.player.HP > 5 {
+			g.wasInCriticalHP = false
+		}
+		
+		// 🆕 Сброс флага сытости, когда игрок проголодался
+		if g.player.Hunger >= 200 {
+			g.wasTooFull = false
+		}
+	}
+	
+	// 🆕 Рисуем попап ТОЛЬКО если мы в основном экране игры и инвентарь закрыт
+	// Это предотвратит отрисовку попапа поверх инвентаря, торговца или меню помощи
+	if g.state == StatePlaying && !g.showInventory {
+		g.renderPopup()
+	}
+	
 	g.screen.Show()
 }
 
@@ -683,6 +706,50 @@ func (g *Game) renderHelpScreen() {
 	g.drawCentered(screenHeight-2, "Любая другая клавиша — возврат в игру", style)
 	g.screen.Show()
 }
+
+// =============================================================================
+// 🆕 ПОПАП С СООБЩЕНИЕМ
+// =============================================================================
+//
+// renderPopup — рисует попап с сообщением в рамке из двойных полосок.
+// Попап показывается, если g.popupMessage != "".
+// Закрывается по нажатию любой клавиши (см. handleInput).
+func (g *Game) renderPopup() {
+	if g.popupMessage == "" {
+		return
+	}
+
+	// Размеры рамки
+	boxWidth := 60
+	boxHeight := 5
+	boxX := (screenWidth - boxWidth) / 2
+	boxY := (screenHeight - boxHeight) / 2
+
+	// Стили
+	boxStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
+	textStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
+
+	// Вспомогательная функция для повторения символа
+	repeat := func(s string, n int) string {
+		result := ""
+		for i := 0; i < n; i++ {
+			result += s
+		}
+		return result
+	}
+
+	// Рисуем рамку
+	g.drawString(boxX, boxY, "╔"+repeat("═", boxWidth-2)+"╗", boxStyle)
+	for i := 1; i < boxHeight-1; i++ {
+		g.drawString(boxX, boxY+i, "║"+repeat(" ", boxWidth-2)+"║", boxStyle)
+	}
+	g.drawString(boxX, boxY+boxHeight-1, "╚"+repeat("═", boxWidth-2)+"╝", boxStyle)
+
+	// Рисуем текст по центру рамки
+	textX := boxX + (boxWidth-stringWidth(g.popupMessage))/2
+	g.drawRawString(textX, boxY+2, g.popupMessage, textStyle)
+}
+
 // =============================================================================
 // 🆕 ЭТАП 3: ЭКРАН ПОБЕДЫ
 // =============================================================================

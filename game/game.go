@@ -38,8 +38,9 @@ const (
 	StateQuitConfirm                  // подтверждение выхода
 	StateDeathMenu                    // экран смерти игрока
 	StateHelp                         // экран помощи
-	StateMerchant                     // экран торговли с торговцем
+	StateMerchant                     // экран торговли
 	StateVictory                      // экран победы
+	StatePopup                        // 🆕 попап с сообщением
 )
 
 // =============================================================================
@@ -73,6 +74,10 @@ type Game struct {
 
 	// Торговец
 	currentMerchant     *Merchant 
+		// 🆕 Попапы и предупреждения
+	popupMessage      string // сообщение для попапа (если != "" — показываем)
+	wasInCriticalHP   bool   // 🆕 был ли игрок в критическом состоянии (HP ≤ 5)
+	wasTooFull        bool // 🆕 был ли игрок слишком сыт (Hunger < 200)	
 	pendingRelicSellIndex int     // 🆕 Индекс реликвии, ожидающей подтверждения продажи (-1 если нет)
 
 	// Музыка
@@ -125,6 +130,9 @@ func NewGame() *Game {
 		musicEnabled:          true,
 		musicLevel:            0.3,
 		pendingRelicSellIndex: -1, // 🆕 Инициализация флага подтверждения
+		popupMessage:      "",  // 🆕
+		wasInCriticalHP: false,
+		wasTooFull:        false, // 🆕
 	}
 }
 

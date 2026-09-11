@@ -1,121 +1,77 @@
-// =============================================================================
-// СПИСОК ВСЕХ КЛАВИШ (синхронизировать с renderHelpScreen!)
-// =============================================================================
-// Движение:    WASD, QEZC, стрелки
-// Действия:    I (инвентарь), ? (помощь), M (музыка), +/- (громкость)
-// Взаимодействие: T (торговец), B (алтарь), O (сундук)
-// Лестницы:    > (вниз), < (вверх)
-// Меню:        Y/Q/ESC (выход), N (новая игра), L (загрузка)
-// =============================================================================
 package game
 
 import (
 	"fmt"
-	"math/rand/v2" // ДОБАВЛЕНО: для работы rand.IntN
+	"math/rand/v2"
 	"os"
 
 	"github.com/gdamore/tcell/v2"
 )
 
-// handleHelpInput — обработка ввода на экране помощи.
-//
-// НАВИГАЦИЯ:
-//   - Стрелки ← → или клавиши A/D: перелистывание страниц
-//   - Любая другая клавиша: возврат в игру
-//
-// Перелистывание НЕ циклическое: на первой странице ← ничего не делает,
-// на последней странице → ничего не делает.
 func (g *Game) handleHelpInput() {
 	if g.screen == nil {
 		return
 	}
 	ev := g.screen.PollEvent()
-
 	keyEvent, ok := ev.(*tcell.EventKey)
 	if !ok {
 		return
 	}
-
-	// Стрелка влево — предыдущая страница
 	if keyEvent.Key() == tcell.KeyLeft {
 		if g.helpPage > helpPageControls {
 			g.helpPage--
 		}
 		return
 	}
-
-	// Стрелка вправо — следующая страница
 	if keyEvent.Key() == tcell.KeyRight {
 		if g.helpPage < helpPageCount-1 {
 			g.helpPage++
 		}
 		return
 	}
-
 	r := keyEvent.Rune()
-
-	// A — предыдущая страница (аналог стрелки влево)
 	if r == 'a' || r == 'A' {
 		if g.helpPage > helpPageControls {
 			g.helpPage--
 		}
 		return
 	}
-
-	// D — следующая страница (аналог стрелки вправо)
 	if r == 'd' || r == 'D' {
 		if g.helpPage < helpPageCount-1 {
 			g.helpPage++
 		}
 		return
 	}
-
-	// Любая другая клавиша — возврат в игру
 	g.state = StatePlaying
 }
 
-// =============================================================================
-// 🆕 ЭТАП 3: ОБРАБОТКА ВВОДА НА ЭКРАНЕ ПОБЕДЫ
-// =============================================================================
-//
-// handleVictoryInput — обработка ввода на экране победы.
-// Любая клавиша — выход из игры.
-// Состояние StateVictory определено в game.go.
-// Экран победы отрисовывается в render.go → renderVictoryScreen.
 func (g *Game) handleVictoryInput() {
 	if g.screen == nil {
 		return
 	}
 	ev := g.screen.PollEvent()
-
 	switch ev.(type) {
 	case *tcell.EventKey:
-		// Любая клавиша — выход из игры
 		g.quit = true
 	}
 }
 
-// =============================================================================
-// ОБРАБОТКА ВВОДА
-// =============================================================================
-
-// handleInput — обработка ввода в режиме игры
 func (g *Game) handleInput() {
 	if g.screen == nil {
 		return
 	}
 	ev := g.screen.PollEvent()
-
 	switch ev := ev.(type) {
 	case *blinkEvent:
-		// Событие мигания — просто перерисовываем экран
-		// (нужно для анимации боссов и мигания игрока с Амулетом)
 		return
 	case *tcell.EventKey:
+		// 🆕 Если показан попап — закрываем по любой клавише (без return, чтобы клавиша сработала)
+		if g.popupMessage != "" {
+			g.popupMessage = ""
+		}
+
 		isEscape := ev.Key() == tcell.KeyEscape || ev.Rune() == 27
 		isQuit := ev.Key() == tcell.KeyCtrlC || ev.Key() == tcell.KeyCtrlQ
-
-		// ESC или Ctrl+C: закрываем инвентарь или показываем диалог выхода
 		if isEscape || isQuit {
 			if g.showInventory {
 				g.showInventory = false
@@ -125,26 +81,21 @@ func (g *Game) handleInput() {
 			g.state = StateQuitConfirm
 			return
 		}
-
-		// В зависимости от того, открыт ли инвентарь, обрабатываем разные клавиши
 		if g.showInventory {
 			g.handleInventoryInput(ev.Rune())
 		} else {
 			g.handleMovement(ev.Rune(), ev.Key())
 		}
 	case *tcell.EventResize:
-		// При изменении размера терминала синхронизируем экран
 		g.screen.Sync()
 	}
 }
 
-// handleStartMenuInput — обработка ввода в стартовом меню
 func (g *Game) handleStartMenuInput() {
 	if g.screen == nil {
 		return
 	}
 	ev := g.screen.PollEvent()
-
 	switch ev := ev.(type) {
 	case *tcell.EventKey:
 		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
@@ -153,42 +104,36 @@ func (g *Game) handleStartMenuInput() {
 		}
 		r := ev.Rune()
 		if r == 'l' || r == 'L' {
-			g.loadGameFromMenu() // загрузить сохранение (функция в save.go)
+			g.loadGameFromMenu()
 		} else if r == 'n' || r == 'N' {
-			// Новая игра: удаляем старое сохранение
 			if _, err := os.Stat(saveFile); err == nil {
 				os.Remove(saveFile)
 			}
-			g.startNewGame() // функция в save.go
+			g.startNewGame()
 		} else if r == 'm' || r == 'M' {
-			g.toggleMusic() // вкл/выкл музыку в меню (функция в audio.go)
+			g.toggleMusic()
 		}
 	}
 }
 
-// handleQuitConfirmInput — обработка ввода в диалоге подтверждения выхода
 func (g *Game) handleQuitConfirmInput() {
 	if g.screen == nil {
 		return
 	}
 	ev := g.screen.PollEvent()
-
 	switch ev := ev.(type) {
 	case *tcell.EventKey:
 		if ev.Key() == tcell.KeyEscape || ev.Rune() == 27 || ev.Rune() == 'n' || ev.Rune() == 'N' {
-			// Отмена выхода
 			g.state = StatePlaying
 			return
 		}
 		if ev.Rune() == 'y' || ev.Rune() == 'Y' || ev.Key() == tcell.KeyEnter {
-			// Подтверждение выхода
 			g.quit = true
 			return
 		}
 	}
 }
 
-// handleDeathInput — обработка ввода на экране смерти
 func (g *Game) handleDeathInput() {
 	if g.screen == nil {
 		return
@@ -196,7 +141,6 @@ func (g *Game) handleDeathInput() {
 	ev := g.screen.PollEvent()
 	switch ev := ev.(type) {
 	case *tcell.EventKey:
-		// ✅ ИСПРАВЛЕНО: теперь Y, y, Q, q, ESC, Ctrl+C — все ведут к выходу
 		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC ||
 			ev.Rune() == 'y' || ev.Rune() == 'Y' ||
 			ev.Rune() == 'q' || ev.Rune() == 'Q' {
@@ -204,7 +148,6 @@ func (g *Game) handleDeathInput() {
 			return
 		}
 		if ev.Rune() == 'n' || ev.Rune() == 'N' || ev.Key() == tcell.KeyEnter {
-			// Новая игра после смерти: удаляем старое сохранение
 			if _, err := os.Stat(saveFile); err == nil {
 				os.Remove(saveFile)
 			}
@@ -214,31 +157,23 @@ func (g *Game) handleDeathInput() {
 	}
 }
 
-// handleInventoryInput — обработка ввода в инвентаре
 func (g *Game) handleInventoryInput(key rune) {
 	if g.player == nil {
 		return
 	}
-
-	// Цифры 1-9 для использования предметов
 	if key >= '1' && key <= '9' {
 		index := int(key - '1')
 		if index < 0 || index >= len(g.player.Inventory) {
 			g.addMessage("Такого предмета нет!")
 			return
 		}
-
 		item := g.player.Inventory[index]
 		if item == nil {
 			return
 		}
-
-		// Используем предмет
 		g.useItem(index)
 		return
 	}
-
-	// ESC или q — закрыть инвентарь
 	if key == 27 || key == 'q' || key == 'Q' {
 		g.showInventory = false
 		g.addMessage("Инвентарь закрыт")
@@ -246,7 +181,9 @@ func (g *Game) handleInventoryInput(key rune) {
 	}
 }
 
-// useItem — использование предмета из инвентаря по индексу
+// =============================================================================
+// 🆕 ИСПОЛЬЗОВАНИЕ ПРЕДМЕТОВ (С УМНЫМИ ПРОВЕРКАМИ И КОРРЕКТНЫМ АПГРЕЙДОМ)
+// =============================================================================
 func (g *Game) useItem(index int) {
 	if g.player == nil || index < 0 || index >= len(g.player.Inventory) {
 		return
@@ -259,10 +196,24 @@ func (g *Game) useItem(index int) {
 	switch item.Type {
 	case ItemTypePotion:
 		if item.Name == "Еда" {
-			g.player.Hunger = 0
-			g.addMessage("Вы поели. Голод утолен.")
-			g.logAndSync("ITEM_USE: Съедена еда")
+			// 🆕 УМНАЯ ПРОВЕРКА СЫТОСТИ (нельзя есть, если сытость > 80%, то есть Hunger < 200)
+			if g.player.Hunger < 200 {
+				g.addMessage("Вам не надо есть, вы можете лопнуть!")
+				return // не тратим еду и не тратим ход
+			}
+			// Уменьшаем голод на 50%
+			g.player.Hunger -= g.player.Hunger / 2
+			g.addMessage("Вы поели. Голод уменьшился.")
+			g.logAndSync("ITEM_USE: Съедена еда. Голод: %d", g.player.Hunger)
 		} else {
+			// 🆕 УМНАЯ ПРОВЕРКА ЗДОРОВЬЯ (нельзя пить зелье, если HP > 90%)
+			if g.player.MaxHP > 0 {
+				hpPercent := float64(g.player.HP) / float64(g.player.MaxHP)
+				if hpPercent > 0.90 {
+					g.addMessage("Вы чувствуете себя отлично, зелье не требуется!")
+					return // не тратим зелье и не тратим ход
+				}
+			}
 			heal := item.Value
 			oldHP := g.player.HP
 			g.player.HP += heal
@@ -273,12 +224,12 @@ func (g *Game) useItem(index int) {
 			g.logAndSync("ITEM_USE: Выпито %s, HP восстановлено на %d", item.Name, g.player.HP-oldHP)
 		}
 		g.consumeItem(index)
-		g.processTurn(0, 0) // Ход тратится
+		g.processTurn(0, 0)
 
 	case ItemTypeWeapon:
 		// ✅ АПГРЕЙД ИЛИ ЭКИПИРОВКА
 		// Метод EquipWeapon в player.go сам проверяет:
-		// - если слот пуст -> экипирует предмет
+		// - если слот пуст -> экипирует предмет (создает копию)
 		// - если слот занят -> улучшает текущее оружие на +1
 		g.player.EquipWeapon(item)
 		
@@ -292,7 +243,7 @@ func (g *Game) useItem(index int) {
 	case ItemTypeArmor:
 		// ✅ АПГРЕЙД ИЛИ ЭКИПИРОВКА
 		// Метод EquipArmor в player.go сам проверяет:
-		// - если слот пуст -> экипирует предмет
+		// - если слот пуст -> экипирует предмет (создает копию)
 		// - если слот занят -> улучшает текущую броню на +1
 		g.player.EquipArmor(item)
 		
@@ -310,43 +261,31 @@ func (g *Game) useItem(index int) {
 		g.addMessage("Этот предмет нельзя использовать напрямую.")
 	}
 }
-// consumeItem — уменьшает Count предмета или удаляет его из инвентаря
+
 func (g *Game) consumeItem(index int) {
 	if g.player == nil || index < 0 || index >= len(g.player.Inventory) {
 		return
 	}
-
 	item := g.player.Inventory[index]
 	if item == nil {
 		return
 	}
-
 	item.Count--
 	if item.Count <= 0 {
-		// Удаляем предмет из инвентаря
 		g.player.Inventory = append(g.player.Inventory[:index], g.player.Inventory[index+1:]...)
 	}
 }
 
-// =============================================================================
-// 🆕 ЭТАП 1: ИСПОЛЬЗОВАНИЕ СВИТКОВ
-// =============================================================================
-//
-// useScroll — применяет эффект свитка и тратит его.
-// Реализованы 4 типа свитков: карта, телепорт, молния, изгнание.
 func (g *Game) useScroll(index int) {
 	if g.player == nil || index < 0 || index >= len(g.player.Inventory) {
 		return
 	}
-
 	item := g.player.Inventory[index]
 	if item == nil || item.Type != ItemTypeScroll {
 		return
 	}
-
 	switch item.ScrollType {
 	case ScrollMap:
-		// Открываем всю карту
 		if g.level != nil {
 			for y := 0; y < g.level.Height; y++ {
 				for x := 0; x < g.level.Width; x++ {
@@ -357,9 +296,7 @@ func (g *Game) useScroll(index int) {
 			g.addMessage("Свиток карты озарил всё подземелье!")
 			g.logAndSync("SCROLL: Использован свиток карты")
 		}
-
 	case ScrollTeleport:
-		// Случайная телепортация на свободную клетку
 		if g.level != nil {
 			newX, newY := g.level.FindFreeSpot()
 			g.player.X = newX
@@ -367,9 +304,7 @@ func (g *Game) useScroll(index int) {
 			g.addMessage("Вас телепортировало в другое место!")
 			g.logAndSync("SCROLL: Телепортация на (%d, %d)", newX, newY)
 		}
-
 	case ScrollLightning:
-		// Урон всем монстрам на уровне
 		if g.level != nil && len(g.level.Monsters) > 0 {
 			damage := 15 + g.player.Level*2
 			killedCount := 0
@@ -394,9 +329,7 @@ func (g *Game) useScroll(index int) {
 		} else {
 			g.addMessage("На этом уровне нет монстров.")
 		}
-
 	case ScrollBanishment:
-		// Уничтожает одного случайного монстра на уровне
 		if g.level != nil && len(g.level.Monsters) > 0 {
 			idx := rand.IntN(len(g.level.Monsters))
 			m := g.level.Monsters[idx]
@@ -404,28 +337,22 @@ func (g *Game) useScroll(index int) {
 				g.level.RemoveMonster(m)
 				g.player.Gold += m.GoldValue
 				g.player.GainXP(m.XPValue)
-				g.addMessage(fmt.Sprintf("Монстр %s был изгнан в небытие!", m.Name))
+				g.addMessage(fmt.Sprintf("Монстр %s изгнан в небытие!", m.Name))
 				g.logAndSync("SCROLL: Изгнан монстр %s", m.Name)
 			}
 		} else {
 			g.addMessage("На этом уровне нет монстров.")
 		}
 	}
-
-	// Тратим свиток
 	g.consumeItem(index)
 	g.processTurn(0, 0)
 }
 
-// handleMovement — обработка клавиш движения и действий
 func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 	if g.player == nil || g.level == nil {
 		return
 	}
-
 	dx, dy := 0, 0
-
-	// Сначала проверяем специальные клавиши (стрелки)
 	switch specialKey {
 	case tcell.KeyUp:
 		dy = -1
@@ -436,18 +363,13 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 	case tcell.KeyRight:
 		dx = 1
 	}
-
-	// Пробел — ждать ход
 	if key == ' ' {
 		g.logAndSync("ACTION: Игрок ждет ход (пробел)")
 		g.processTurn(0, 0)
 		return
 	}
-
-	// Если стрелки не использовались, проверяем обычные клавиши
 	if dx == 0 && dy == 0 {
 		switch key {
-		// Движение: WASD для 4 направлений, QEZC для диагоналей
 		case 'a', 'A':
 			dx = -1
 		case 'x', 'X':
@@ -465,41 +387,31 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 		case 'c', 'C':
 			dx, dy = 1, 1
 		case 's':
-			// S — ждать ход (аналог пробела)
 			g.logAndSync("ACTION: Игрок ждет ход (s)")
 			g.processTurn(0, 0)
 			return
 		case 'i', 'I':
-			// I — открыть инвентарь
 			g.showInventory = true
 			g.logAndSync("UI: Открыт инвентарь")
 			g.addMessage("Открыт инвентарь")
 			return
 		case 'm', 'M':
-			// M — вкл/выкл музыку
 			g.toggleMusic()
 			return
 		case '+', '=':
-			// + — громче на 10%
 			g.changeMusicVolume(0.1)
 			return
 		case '-', '_':
-			// - — тише на 10%
 			g.changeMusicVolume(-0.1)
 			return
 		case '?':
-			// ? — экран помощи
 			g.state = StateHelp
-			g.helpPage = helpPageControls // всегда открываем с первой страницы
+			g.helpPage = helpPageControls
 			return
 		case '>':
-			// > — спуститься по лестнице
 			if g.level.StairsDown &&
 				g.player.X == g.level.StairsDownX &&
 				g.player.Y == g.level.StairsDownY {
-				// БЛОКИРОВКА ЛЕСТНИЦЫ БОССОМ:
-				// Пока босс жив, игрок не может спуститься
-				// Функции определены в level_boss.go
 				if g.level.HasAliveBoss() {
 					bossName := g.level.GetBossName()
 					g.addMessage(fmt.Sprintf("%s охраняет лестницу! Сначала победите его!", bossName))
@@ -511,42 +423,29 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 			g.addMessage("Здесь нет лестницы вниз.")
 			return
 		case '<':
-			// < — подняться по лестнице
 			if g.level.StairsUp &&
 				g.player.X == g.level.StairsUpX &&
 				g.player.Y == g.level.StairsUpY {
-
-				// Поднимаемся на уровень выше
 				g.prevLevel()
-
-				// 🆕 ЭТАП 3: ПРОВЕРКА ПОБЕДЫ ПОСЛЕ ПОДЪЁМА
-				// Основной путь к победе: подняться с уровня 2 на уровень 1.
-				// Если игрок оказался на уровне 1 с Амулетом — ПОБЕДА!
 				if g.depth == 1 && g.player.HasAmulet {
 					g.logAndSync("VICTORY: Игрок вернулся на уровень 1 с Амулетом Бездны!")
 					g.state = StateVictory
 					return
 				}
-
 				return
 			}
 			g.addMessage("Здесь нет лестницы вверх.")
 			return
 		case 'S':
-			// Shift+S — сохранить игру
 			g.saveGame()
 			return
 		case 'n', 'N':
-			// N — новая игра (удаляем сохранение)
 			if _, err := os.Stat(saveFile); err == nil {
 				os.Remove(saveFile)
 			}
 			g.startNewGame()
 			return
 		case 't', 'T':
-			// T — торговля (если стоим на торговце)
-			// Открываем экран торговли с выбором по цифре
-			// Функция GetMerchantAt определена в level_queries.go
 			if merchant := g.level.GetMerchantAt(g.player.X, g.player.Y); merchant != nil {
 				g.currentMerchant = merchant
 				g.state = StateMerchant
@@ -555,28 +454,24 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 			}
 			g.addMessage("Здесь нет торговца.")
 			return
-		case 'B', 'b':
-			// B — молитва на алтаре (если стоим на алтаре)
+		case 'P', 'p':
 			if altar := g.level.GetAltarAt(g.player.X, g.player.Y); altar != nil {
 				g.showAltarUI(altar)
-				g.processTurn(0, 0) // Молитва тратит ход
+				g.processTurn(0, 0)
 				return
 			}
 			g.addMessage("Здесь нет алтаря.")
 			return
 		case 'O', 'o':
-			// O — открыть сундук (если стоим на сундуке)
 			if chest := g.level.GetChestAt(g.player.X, g.player.Y); chest != nil {
 				g.openChest(chest)
-				g.processTurn(0, 0) // Открытие тратит ход
+				g.processTurn(0, 0)
 				return
 			}
 			g.addMessage("Здесь нет сундука.")
 			return
 		}
 	}
-
-	// Если было движение, обрабатываем ход
 	if dx != 0 || dy != 0 {
 		g.logAndSync("MOVE: Игрок движется на dx=%d, dy=%d", dx, dy)
 		g.processTurn(dx, dy)

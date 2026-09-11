@@ -21,14 +21,12 @@ type Player struct {
 	Defense   int
 	Hunger    int
 	Inventory []*Item
-
+	
 	EquippedWeapon *Item
 	EquippedArmor  *Item
-
-	// 🆕 ЭТАП 3: Амулет Бездны
+	
 	HasAmulet bool
-
-	logger *log.Logger
+	logger    *log.Logger
 }
 
 // =============================================================================
@@ -51,9 +49,6 @@ func NewPlayer(x, y int) *Player {
 	}
 }
 
-// =============================================================================
-// УСТАНОВКА ЛОГГЕРА
-// =============================================================================
 func (p *Player) SetLogger(logger *log.Logger) {
 	if p == nil {
 		return
@@ -68,11 +63,12 @@ func (p *Player) Move(dx, dy int) {
 	if p == nil {
 		return
 	}
-
 	p.X += dx
 	p.Y += dy
-	p.Hunger += 2
-
+	
+	// 🆕 ИСПРАВЛЕНО: Расход сытости 2 за ход (вместо 5)
+	p.Hunger += 2 
+	
 	if p.logger != nil {
 		p.logger.Printf("MOVE: Игрок переместился на (%d, %d). Голод: %d", p.X, p.Y, p.Hunger)
 	}
@@ -86,9 +82,6 @@ func (p *Player) Move(dx, dy int) {
 	}
 }
 
-// =============================================================================
-// АТАКА ИГРОКА
-// =============================================================================
 func (p *Player) Attack() int {
 	if p == nil {
 		return 0
@@ -96,9 +89,6 @@ func (p *Player) Attack() int {
 	return p.AttackVal
 }
 
-// =============================================================================
-// ВОССТАНОВЛЕНИЕ ЗДОРОВЬЯ
-// =============================================================================
 func (p *Player) Heal(amount int) {
 	if p == nil {
 		return
@@ -114,12 +104,12 @@ func (p *Player) Heal(amount int) {
 }
 
 // =============================================================================
-// ЭКИПИРОВКА ОРУЖИЯ (С СОЗДАНИЕМ КОПИИ)
+// 🆕 ЭКИПИРОВКА ОРУЖИЯ (С СОЗДАНИЕМ КОПИИ И АПГРЕЙДОМ)
 // =============================================================================
 //
-// 🆕 ИСПРАВЛЕНИЕ: При первой экипировке создаётся КОПИЯ предмета,
+// ✅ ИСПРАВЛЕНИЕ: При первой экипировке создаётся КОПИЯ предмета,
 // чтобы экипировка и инвентарь были независимыми объектами.
-// Это предотвращает проблему "мечи пропадают".
+// Это предотвращает проблему "мечи пропадают" или "портятся стопки".
 func (p *Player) EquipWeapon(item *Item) {
 	if p == nil || item == nil {
 		return
@@ -127,7 +117,6 @@ func (p *Player) EquipWeapon(item *Item) {
 
 	// Если НЕТ экипированного оружия — создаём КОПИЮ и экипируем
 	if p.EquippedWeapon == nil {
-		// 🆕 Создаём копию предмета
 		p.EquippedWeapon = &Item{
 			Name:   item.Name,
 			Type:   item.Type,
@@ -154,18 +143,15 @@ func (p *Player) EquipWeapon(item *Item) {
 }
 
 // =============================================================================
-// ЭКИПИРОВКА БРОНИ (С СОЗДАНИЕМ КОПИИ)
+// 🆕 ЭКИПИРОВКА БРОНИ (С СОЗДАНИЕМ КОПИИ И АПГРЕЙДОМ)
 // =============================================================================
-//
-// 🆕 ИСПРАВЛЕНИЕ: При первой экипировке создаётся КОПИЯ предмета.
 func (p *Player) EquipArmor(item *Item) {
 	if p == nil || item == nil {
 		return
 	}
 
-	// Если НЕТ экипированной брони — создаём КОПИЮ и экипируем
+	// Если НЕТ экипированной брони — создаём КОПИЮ
 	if p.EquippedArmor == nil {
-		// 🆕 Создаём копию предмета
 		p.EquippedArmor = &Item{
 			Name:   item.Name,
 			Type:   item.Type,
@@ -198,9 +184,7 @@ func (p *Player) GainXP(amount int) bool {
 	if p == nil || amount <= 0 {
 		return false
 	}
-
 	p.XP += amount
-
 	threshold := p.Level * 20
 	if p.XP >= threshold {
 		p.XP -= threshold
@@ -218,9 +202,6 @@ func (p *Player) GainXP(amount int) bool {
 	return false
 }
 
-// =============================================================================
-// ОПЫТ ДО СЛЕДУЮЩЕГО УРОВНЯ
-// =============================================================================
 func (p *Player) NextLevelXP() int {
 	if p == nil {
 		return 0
@@ -228,57 +209,40 @@ func (p *Player) NextLevelXP() int {
 	return p.Level * 20
 }
 
-// =============================================================================
-// 🆕 ЭТАП 3: ПОДСЧЁТ РЕЛИКВИЙ
-// =============================================================================
 func (p *Player) CountRelics() int {
 	if p == nil {
 		return 0
 	}
-
 	seen := make(map[int]bool)
 	for _, item := range p.Inventory {
 		if item != nil && item.Type == ItemTypeRelic && item.RelicID >= 0 {
 			seen[item.RelicID] = true
 		}
 	}
-
 	return len(seen)
 }
 
-// =============================================================================
-// ПРОВЕРКА КРИТИЧЕСКОГО СОСТОЯНИЯ
-// =============================================================================
 func (p *Player) isCritical() bool {
 	if p == nil {
 		return false
 	}
-
 	if p.MaxHP > 0 {
 		hpPercent := float64(p.HP) / float64(p.MaxHP)
 		if hpPercent < 0.20 {
 			return true
 		}
 	}
-
 	if p.Hunger > 800 {
 		return true
 	}
-
 	return false
 }
 
-// =============================================================================
-// ОТРИСОВКА ИГРОКА
-// =============================================================================
 func (p *Player) Render(screen tcell.Screen, offsetX, offsetY int) {
 	if p == nil || screen == nil {
 		return
 	}
-
 	fg := tcell.ColorGreen
-
-	// 🆕 ЭТАП 3: Если игрок несёт Амулет Бездны — мигаем золотым/белым
 	if p.HasAmulet {
 		phase := (time.Now().UnixNano() / int64(400*time.Millisecond)) % 2
 		if phase == 0 {
@@ -294,11 +258,9 @@ func (p *Player) Render(screen tcell.Screen, offsetX, offsetY int) {
 			fg = tcell.ColorGreen
 		}
 	}
-
 	style := tcell.StyleDefault.
 		Foreground(fg).
 		Background(tcell.ColorBlack)
-
 	screen.SetContent(
 		p.X+offsetX,
 		p.Y+offsetY,
