@@ -65,11 +65,9 @@ func (g *Game) handleInput() {
 	case *blinkEvent:
 		return
 	case *tcell.EventKey:
-		// 🆕 Если показан попап — закрываем по любой клавише (без return, чтобы клавиша сработала)
 		if g.popupMessage != "" {
 			g.popupMessage = ""
 		}
-
 		isEscape := ev.Key() == tcell.KeyEscape || ev.Rune() == 27
 		isQuit := ev.Key() == tcell.KeyCtrlC || ev.Key() == tcell.KeyCtrlQ
 		if isEscape || isQuit {
@@ -91,6 +89,7 @@ func (g *Game) handleInput() {
 	}
 }
 
+// ИСПРАВЛЕНО: убраны однострочные if-else, которые ломали компиляцию
 func (g *Game) handleStartMenuInput() {
 	if g.screen == nil {
 		return
@@ -105,12 +104,14 @@ func (g *Game) handleStartMenuInput() {
 		r := ev.Rune()
 		if r == 'l' || r == 'L' {
 			g.loadGameFromMenu()
-		} else if r == 'n' || r == 'N' {
+		}
+		if r == 'n' || r == 'N' {
 			if _, err := os.Stat(saveFile); err == nil {
 				os.Remove(saveFile)
 			}
 			g.startNewGame()
-		} else if r == 'm' || r == 'M' {
+		}
+		if r == 'm' || r == 'M' {
 			g.toggleMusic()
 		}
 	}
@@ -141,9 +142,7 @@ func (g *Game) handleDeathInput() {
 	ev := g.screen.PollEvent()
 	switch ev := ev.(type) {
 	case *tcell.EventKey:
-		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC ||
-			ev.Rune() == 'y' || ev.Rune() == 'Y' ||
-			ev.Rune() == 'q' || ev.Rune() == 'Q' {
+		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC || ev.Rune() == 'q' || ev.Rune() == 'Q' {
 			g.quit = true
 			return
 		}
@@ -181,9 +180,6 @@ func (g *Game) handleInventoryInput(key rune) {
 	}
 }
 
-// =============================================================================
-// 🆕 ИСПОЛЬЗОВАНИЕ ПРЕДМЕТОВ (С УМНЫМИ ПРОВЕРКАМИ И КОРРЕКТНЫМ АПГРЕЙДОМ)
-// =============================================================================
 func (g *Game) useItem(index int) {
 	if g.player == nil || index < 0 || index >= len(g.player.Inventory) {
 		return
@@ -192,26 +188,21 @@ func (g *Game) useItem(index int) {
 	if item == nil {
 		return
 	}
-
 	switch item.Type {
 	case ItemTypePotion:
 		if item.Name == "Еда" {
-			// 🆕 УМНАЯ ПРОВЕРКА СЫТОСТИ (нельзя есть, если сытость > 80%, то есть Hunger < 200)
 			if g.player.Hunger < 200 {
 				g.addMessage("Вам не надо есть, вы можете лопнуть!")
-				return // не тратим еду и не тратим ход
+				return
 			}
-			// Уменьшаем голод на 50%
 			g.player.Hunger -= g.player.Hunger / 2
 			g.addMessage("Вы поели. Голод уменьшился.")
-			g.logAndSync("ITEM_USE: Съедена еда. Голод: %d", g.player.Hunger)
 		} else {
-			// 🆕 УМНАЯ ПРОВЕРКА ЗДОРОВЬЯ (нельзя пить зелье, если HP > 90%)
 			if g.player.MaxHP > 0 {
 				hpPercent := float64(g.player.HP) / float64(g.player.MaxHP)
 				if hpPercent > 0.90 {
 					g.addMessage("Вы чувствуете себя отлично, зелье не требуется!")
-					return // не тратим зелье и не тратим ход
+					return
 				}
 			}
 			heal := item.Value
@@ -221,42 +212,21 @@ func (g *Game) useItem(index int) {
 				g.player.HP = g.player.MaxHP
 			}
 			g.addMessage(fmt.Sprintf("Вы выпили %s и восстановили %d HP!", item.Name, g.player.HP-oldHP))
-			g.logAndSync("ITEM_USE: Выпито %s, HP восстановлено на %d", item.Name, g.player.HP-oldHP)
 		}
 		g.consumeItem(index)
 		g.processTurn(0, 0)
-
 	case ItemTypeWeapon:
-		// ✅ АПГРЕЙД ИЛИ ЭКИПИРОВКА
-		// Метод EquipWeapon в player.go сам проверяет:
-		// - если слот пуст -> экипирует предмет (создает копию)
-		// - если слот занят -> улучшает текущее оружие на +1
 		g.player.EquipWeapon(item)
-		
-		// Безопасно расходуем предмет из инвентаря (уменьшаем Count или удаляем)
 		g.consumeItem(index)
-		
 		g.addMessage(fmt.Sprintf("Оружие обработано: %s (Текущий ATK бонус: %d)", item.Name, g.player.EquippedWeapon.Value))
-		g.logAndSync("ITEM_EQUIP/UPGRADE: Оружие %s", item.Name)
 		g.processTurn(0, 0)
-
 	case ItemTypeArmor:
-		// ✅ АПГРЕЙД ИЛИ ЭКИПИРОВКА
-		// Метод EquipArmor в player.go сам проверяет:
-		// - если слот пуст -> экипирует предмет (создает копию)
-		// - если слот занят -> улучшает текущую броню на +1
 		g.player.EquipArmor(item)
-		
-		// Безопасно расходуем предмет из инвентаря
 		g.consumeItem(index)
-		
 		g.addMessage(fmt.Sprintf("Броня обработана: %s (Текущий DEF бонус: %d)", item.Name, g.player.EquippedArmor.Value))
-		g.logAndSync("ITEM_EQUIP/UPGRADE: Броня %s", item.Name)
 		g.processTurn(0, 0)
-
 	case ItemTypeScroll:
 		g.useScroll(index)
-
 	default:
 		g.addMessage("Этот предмет нельзя использовать напрямую.")
 	}
@@ -276,6 +246,7 @@ func (g *Game) consumeItem(index int) {
 	}
 }
 
+// ИСПРАВЛЕНО: func (g *Game) вместо func (g  Game)
 func (g *Game) useScroll(index int) {
 	if g.player == nil || index < 0 || index >= len(g.player.Inventory) {
 		return
@@ -294,7 +265,6 @@ func (g *Game) useScroll(index int) {
 				}
 			}
 			g.addMessage("Свиток карты озарил всё подземелье!")
-			g.logAndSync("SCROLL: Использован свиток карты")
 		}
 	case ScrollTeleport:
 		if g.level != nil {
@@ -302,7 +272,6 @@ func (g *Game) useScroll(index int) {
 			g.player.X = newX
 			g.player.Y = newY
 			g.addMessage("Вас телепортировало в другое место!")
-			g.logAndSync("SCROLL: Телепортация на (%d, %d)", newX, newY)
 		}
 	case ScrollLightning:
 		if g.level != nil && len(g.level.Monsters) > 0 {
@@ -325,9 +294,6 @@ func (g *Game) useScroll(index int) {
 			} else {
 				g.addMessage("Молния поразила всех монстров, но никто не погиб!")
 			}
-			g.logAndSync("SCROLL: Молния убила %d монстров", killedCount)
-		} else {
-			g.addMessage("На этом уровне нет монстров.")
 		}
 	case ScrollBanishment:
 		if g.level != nil && len(g.level.Monsters) > 0 {
@@ -338,10 +304,7 @@ func (g *Game) useScroll(index int) {
 				g.player.Gold += m.GoldValue
 				g.player.GainXP(m.XPValue)
 				g.addMessage(fmt.Sprintf("Монстр %s изгнан в небытие!", m.Name))
-				g.logAndSync("SCROLL: Изгнан монстр %s", m.Name)
 			}
-		} else {
-			g.addMessage("На этом уровне нет монстров.")
 		}
 	}
 	g.consumeItem(index)
@@ -364,7 +327,6 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 		dx = 1
 	}
 	if key == ' ' {
-		g.logAndSync("ACTION: Игрок ждет ход (пробел)")
 		g.processTurn(0, 0)
 		return
 	}
@@ -387,12 +349,10 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 		case 'c', 'C':
 			dx, dy = 1, 1
 		case 's':
-			g.logAndSync("ACTION: Игрок ждет ход (s)")
 			g.processTurn(0, 0)
 			return
 		case 'i', 'I':
 			g.showInventory = true
-			g.logAndSync("UI: Открыт инвентарь")
 			g.addMessage("Открыт инвентарь")
 			return
 		case 'm', 'M':
@@ -409,26 +369,25 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 			g.helpPage = helpPageControls
 			return
 		case '>':
-			if g.level.StairsDown &&
-				g.player.X == g.level.StairsDownX &&
-				g.player.Y == g.level.StairsDownY {
+			if g.level.StairsDown && g.player.X == g.level.StairsDownX && g.player.Y == g.level.StairsDownY {
 				if g.level.HasAliveBoss() {
-					bossName := g.level.GetBossName()
-					g.addMessage(fmt.Sprintf("%s охраняет лестницу! Сначала победите его!", bossName))
+					g.addMessage(fmt.Sprintf("%s охраняет лестницу! Сначала победите его!", g.level.GetBossName()))
 					return
 				}
 				g.nextLevel()
 				return
 			}
+			if g.level.SecretStairsTargetDepth > 0 && g.player.X == g.level.SecretStairsDownX && g.player.Y == g.level.SecretStairsDownY {
+				g.addMessage("Вы нашли секретный проход! Прыжок через уровень.")
+				g.nextSecretLevel()
+				return
+			}
 			g.addMessage("Здесь нет лестницы вниз.")
 			return
 		case '<':
-			if g.level.StairsUp &&
-				g.player.X == g.level.StairsUpX &&
-				g.player.Y == g.level.StairsUpY {
+			if g.level.StairsUp && g.player.X == g.level.StairsUpX && g.player.Y == g.level.StairsUpY {
 				g.prevLevel()
 				if g.depth == 1 && g.player.HasAmulet {
-					g.logAndSync("VICTORY: Игрок вернулся на уровень 1 с Амулетом Бездны!")
 					g.state = StateVictory
 					return
 				}
@@ -449,7 +408,6 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 			if merchant := g.level.GetMerchantAt(g.player.X, g.player.Y); merchant != nil {
 				g.currentMerchant = merchant
 				g.state = StateMerchant
-				g.logAndSync("UI: Открыт экран торговли")
 				return
 			}
 			g.addMessage("Здесь нет торговца.")
@@ -473,7 +431,6 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 		}
 	}
 	if dx != 0 || dy != 0 {
-		g.logAndSync("MOVE: Игрок движется на dx=%d, dy=%d", dx, dy)
 		g.processTurn(dx, dy)
 	}
 }

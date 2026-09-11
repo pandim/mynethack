@@ -3,7 +3,9 @@ package game
 import (
 	"fmt"
 	"math/rand"
-	"strings" // ДОБАВЛЕНО для getGenitiveName
+	"strings"
+	"time"
+
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -14,7 +16,6 @@ func (g *Game) addToInventoryWithStack(item *Item) {
 	if item == nil || g.player == nil {
 		return
 	}
-
 	if item.IsStackable() {
 		for _, inv := range g.player.Inventory {
 			if inv != nil && inv.Name == item.Name && inv.Type == item.Type {
@@ -24,7 +25,6 @@ func (g *Game) addToInventoryWithStack(item *Item) {
 			}
 		}
 	}
-
 	item.Count = 1
 	g.player.Inventory = append(g.player.Inventory, item)
 }
@@ -56,8 +56,18 @@ func (g *Game) checkPlayerDeath() bool {
 	if g.state == StateDeathMenu {
 		return true
 	}
+	
+	// 🆕 УСТАНАВЛИВАЕМ ПРИЧИНУ СМЕРТИ
+	if g.deathReason == "" {
+		if g.player.Hunger >= 1000 {
+			g.deathReason = "Умер от голода"
+		} else {
+			g.deathReason = "Погиб в подземелье"
+		}
+	}
+	
 	g.player.HP = 0
-	g.logAndSync("GAME_OVER: Игрок погиб")
+	g.logAndSync("GAME_OVER: Игрок погиб. Причина: %s", g.deathReason)
 	g.state = StateDeathMenu
 	return true
 }
@@ -66,7 +76,6 @@ func (g *Game) processTurn(dx, dy int) {
 	if g.level == nil || g.player == nil {
 		return
 	}
-
 	if g.player.HP <= 0 {
 		return
 	}
@@ -74,7 +83,6 @@ func (g *Game) processTurn(dx, dy int) {
 	if dx != 0 || dy != 0 {
 		newX := g.player.X + dx
 		newY := g.player.Y + dy
-
 		if monster := g.level.GetMonsterAt(newX, newY); monster != nil {
 			g.logAndSync("COMBAT: Игрок атакует %s на (%d, %d)", monster.Name, newX, newY)
 			g.attackMonster(monster)
@@ -87,7 +95,24 @@ func (g *Game) processTurn(dx, dy int) {
 			if g.checkPlayerDeath() {
 				return
 			}
-			if item := g.level.GetItemAt(newX, newY); item != nil {
+			
+			// 🆕 ПРОВЕРКА ЛОВУШЕК
+			for _, trap := range g.level.Traps {
+				if trap != nil && !trap.Triggered && trap.X == g.player.X && trap.Y == g.player.Y {
+					trap.Triggered = true
+					g.player.HP -= 3
+					g.addMessage("Щёлк! Вы наступили на ловушку! -3 HP. Телепортация...")
+					newX, newY := g.level.FindFreeSpot()
+					g.player.X = newX
+					g.player.Y = newY
+					if g.checkPlayerDeath() {
+						return
+					}
+					break
+				}
+			}
+			
+			if item := g.level.GetItemAt(g.player.X, g.player.Y); item != nil {
 				g.logAndSync("ITEM: Игрок наступает на %s", item.Name)
 				g.pickupItem(item)
 			}
@@ -105,7 +130,6 @@ func (g *Game) processTurn(dx, dy int) {
 		if m == nil {
 			continue
 		}
-
 		if m.HP <= 0 {
 			deathVerb := "умер"
 			if m.Name == "Ловушка" || m.Name == "Крыса" {
@@ -115,14 +139,12 @@ func (g *Game) processTurn(dx, dy int) {
 			g.level.RemoveMonster(m)
 			continue
 		}
-
 		if m.IsBoss {
 			g.processBossAbilities(m)
 			if g.checkPlayerDeath() {
 				break
 			}
 		}
-
 		if g.monsterIsAdjacent(m) {
 			g.logAndSync("COMBAT: %s атакует игрока!", m.Name)
 			g.monsterAttacksPlayer(m)
@@ -131,7 +153,6 @@ func (g *Game) processTurn(dx, dy int) {
 			}
 			continue
 		}
-
 		m.AIUpdate(g.player.X, g.player.Y, g.level, g.player.HasAmulet)
 	}
 	g.checkPlayerDeath()
@@ -147,15 +168,9 @@ func (g *Game) processBossAbilities(boss *Monster) {
 	switch boss.BossAbility {
 	case BossAbilityRegen:
 		if boss.HP < boss.MaxHP {
-			regen := 3
-			oldHP := boss.HP
-			boss.HP += regen
+			boss.HP += 3
 			if boss.HP > boss.MaxHP {
 				boss.HP = boss.MaxHP
-			}
-			g.logAndSync("BOSS_REGEN: %s восстанавливает %d HP. HP: %d -> %d", boss.Name, boss.HP-oldHP, oldHP, boss.HP)
-			if boss.HP-oldHP > 0 && boss.HP < boss.MaxHP {
-				g.addMessage(fmt.Sprintf("%s регенерирует здоровье...", boss.Name))
 			}
 		}
 	case BossAbilitySummon:
@@ -198,7 +213,6 @@ func (g *Game) summonMinion(boss *Monster) {
 	minion.SetLogger(g.logger)
 	g.level.Monsters = append(g.level.Monsters, minion)
 	g.addMessage(fmt.Sprintf("%s призывает %s!", boss.Name, mt.name))
-	g.logAndSync("BOSS_SUMMON: %s призвал %s на (%d, %d)", boss.Name, mt.name, x, y)
 }
 
 // =============================================================================
@@ -210,43 +224,31 @@ func (g *Game) pickupItem(item *Item) {
 	}
 	if item.Type == ItemTypeGold {
 		g.player.Gold += item.Value
-		g.logAndSync("GOLD: Подобрано %d золота. Всего: %d", item.Value, g.player.Gold)
-		// ИСПРАВЛЕНО: "Вы подобрали" вместо "Подобрано"
 		g.addMessage(fmt.Sprintf("Вы подобрали %s (%d золота)", item.Name, item.Value))
 		g.level.RemoveItem(item)
 		return
 	}
 	if item.Type == ItemTypeAmulet {
 		g.player.HasAmulet = true
-		g.logAndSync("AMULET: Игрок подобрал Амулет Бездны!")
+		g.amuletFlashUntil = time.Now().Add(3 * time.Second) // 🆕 МИГАНИЕ 3 СЕКУНДЫ
 		g.addMessage("Вы подобрали АМУЛЕТ БЕЗДНЫ!")
 		g.addMessage("Монстры стали агрессивнее! Вернитесь на уровень 1!")
 		g.level.RemoveItem(item)
 		return
 	}
 	g.addToInventoryWithStack(item)
-	g.logAndSync("ITEM_PICKUP: Подобран предмет %s", item.Name)
 	g.level.RemoveItem(item)
-	// ИСПРАВЛЕНО: "Вы подобрали" вместо "Подобрано"
 	g.addMessage(fmt.Sprintf("Вы подобрали %s", item.Name))
 }
 
 // =============================================================================
 // СКЛОНЕНИЕ ИМЁН, БОЕВЫЕ КЛИЧИ И ФРАЗЫ ПРИ СМЕРТИ
 // =============================================================================
-
 func getGenitiveName(name string) string {
 	genitiveMap := map[string]string{
-		"Гоблин":           "гоблина",
-		"Орк":              "орка",
-		"Скелет":           "скелета",
-		"Крыса":            "крысы",
-		"Ловушка":          "ловушки",
-		"Вождь Гоблинов":   "вождя гоблинов",
-		"Некромант":        "некроманта",
-		"Древний Дракон":   "древнего дракона",
-		"Повелитель Бездны":"повелителя бездны",
-		"Король Бездны":    "короля бездны",
+		"Гоблин": "гоблина", "Орк": "орка", "Скелет": "скелета", "Крыса": "крысы",
+		"Ловушка": "ловушки", "Вождь Гоблинов": "вождя гоблинов", "Некромант": "некроманта",
+		"Древний Дракон": "древнего дракона", "Повелитель Бездны": "повелителя бездны", "Король Бездны": "короля бездны",
 	}
 	if gen, ok := genitiveMap[name]; ok {
 		return gen
@@ -256,15 +258,15 @@ func getGenitiveName(name string) string {
 
 func getBattleCry(name string) string {
 	cries := map[string][]string{
-		"Гоблин": {"Резать! Кусать! Моё!", "Смерть длинноногому!", "Твои кости станут моими!"},
-		"Орк": {"Сокрушу твои кости!", "Слабым здесь не место!", "Умри, ничтожество!"},
-		"Скелет": {"Плоть гниёт, а кости вечны...", "Присоединяйся к вечному сну.", "Твоё тепло скоро угаснет."},
+		"Гоблин": {"Резать! Кусать!", "Смерть длинноногому!"},
+		"Орк": {"Сокрушу твои кости!", "Умри, ничтожество!"},
+		"Скелет": {"Плоть гниёт, а кости вечны...", "Твоё тепло скоро угаснет."},
 		"Крыса": {"Грызть! Рвать! Жрать!", "Нас много, а ты один!"},
-		"Вождь Гоблинов": {"Разорвать его на части, мои верные!", "Я съем твоё сердце на завтрак!"},
-		"Некромант": {"Твоя душа станет моей марионеткой!", "Падая, ты послужишь мне лучше, чем живым."},
-		"Древний Дракон": {"Ты смеешь бросать вызов огню веков?!", "Сгори в моём пламени, ничтожная искра!"},
-		"Повелитель Бездны": {"Бездна смотрит на тебя, и она голодна.", "Твой свет погаснет здесь навсегда."},
-		"Король Бездны": {"Я — конец всего сущего. Смирись!", "Твоя надежда — лишь иллюзия перед лицом вечной тьмы."},
+		"Вождь Гоблинов": {"Разорвать его на части!"},
+		"Некромант": {"Твоя душа станет моей марионеткой!"},
+		"Древний Дракон": {"Сгори в моём пламени!"},
+		"Повелитель Бездны": {"Бездна голодна..."},
+		"Король Бездны": {"Я — конец всего сущего!"},
 	}
 	if phrases, ok := cries[name]; ok && len(phrases) > 0 {
 		return phrases[rand.Intn(len(phrases))]
@@ -274,16 +276,16 @@ func getBattleCry(name string) string {
 
 func getDeathPhrase(name string) string {
 	phrases := map[string][]string{
-		"Гоблин": {"Нет! Моё золото!", "Я вернусь...", "Мама!"},
-		"Орк": {"Слава Оркам!", "Ты ещё заплатишь...", "Грррр..."},
-		"Скелет": {"Кости... крошатся...", "Во прах...", "Тьма забирает меня..."},
-		"Крыса": {"Писк...", "Грызть... больше не могу..."},
-		"Ловушка": {"Щёлк... и тишина.", "Механизм сломан..."},
+		"Гоблин": {"Нет! Моё золото!", "Мама!"},
+		"Орк": {"Слава Оркам!", "Грррр..."},
+		"Скелет": {"Кости... крошатся...", "Во прах..."},
+		"Крыса": {"Писк..."},
+		"Ловушка": {"Щёлк... и тишина."},
 		"Вождь Гоблинов": {"Племя... не простит тебя!"},
-		"Некромант": {"Смерть... это лишь начало... моего возвращения..."},
-		"Древний Дракон": {"Мой огонь... погаснет... но не навсегда..."},
-		"Повелитель Бездны": {"Бездна... ждёт тебя... смертный..."},
-		"Король Бездны": {"Ты не победил... ты лишь отсрочил конец..."},
+		"Некромант": {"Смерть... это лишь начало..."},
+		"Древний Дракон": {"Мой огонь... погаснет..."},
+		"Повелитель Бездны": {"Бездна... ждёт тебя..."},
+		"Король Бездны": {"Ты не победил..."},
 	}
 	if p, ok := phrases[name]; ok && len(p) > 0 {
 		return p[rand.Intn(len(p))]
@@ -294,7 +296,6 @@ func getDeathPhrase(name string) string {
 // =============================================================================
 // АТАКА МОНСТРА
 // =============================================================================
-// ИСПРАВЛЕНО: убраны лишние пробелы в имени константы, чтобы код компилировался
 const FinalBossName = "Король Бездны"
 
 func (g *Game) attackMonster(monster *Monster) {
@@ -304,7 +305,6 @@ func (g *Game) attackMonster(monster *Monster) {
 	damage := g.player.Attack()
 	monster.TakeDamage(damage)
 
-	// 🆕 БОЕВОЙ КЛИЧ
 	cry := getBattleCry(monster.Name)
 	if cry != "" {
 		g.addMessage(fmt.Sprintf("%s кричит: \"%s\" и атакует на %d урона!", monster.Name, cry, damage))
@@ -316,14 +316,10 @@ func (g *Game) attackMonster(monster *Monster) {
 		g.level.RemoveMonster(monster)
 		g.player.Gold += monster.GoldValue
 		leveledUp := g.player.GainXP(monster.XPValue)
-		g.logAndSync("KILL: %s убит. Gold +%d, XP +%d", monster.Name, monster.GoldValue, monster.XPValue)
-
 		deathVerb := "умер"
 		if monster.Name == "Ловушка" || monster.Name == "Крыса" {
 			deathVerb = "умерла"
 		}
-		
-		// 🆕 ФРАЗА ПРИ СМЕРТИ
 		deathPhrase := getDeathPhrase(monster.Name)
 
 		if monster.Name == FinalBossName {
@@ -335,7 +331,6 @@ func (g *Game) attackMonster(monster *Monster) {
 				g.addMessage("⚔ КОРОЛЬ БЕЗДНЫ ПОВЕРЖЕН!")
 			}
 			g.addMessage("Амулет Бездны появился на его месте! Подберите его!")
-			g.logAndSync("FINAL_BOSS_KILLED: Амулет Бездны заспавнен на (%d, %d)", monster.X, monster.Y)
 		} else if monster.IsBoss {
 			if deathPhrase != "" {
 				g.addMessage(fmt.Sprintf("⚔ %s ПОВЕРЖЕН со словами: \"%s\"! Путь к лестнице открыт!", monster.Name, deathPhrase))
@@ -356,11 +351,9 @@ func (g *Game) attackMonster(monster *Monster) {
 			}
 		}
 
-		// 🆕 ШАНС ВЫПАДЕНИЯ КЛЮЧЕЙ И СВИТКОВ С МОНСТРОВ
 		lootRoll := rand.Intn(100)
 		monsterGenitive := getGenitiveName(monster.Name)
-		
-		if lootRoll < 5 { // 5% шанс на свиток
+		if lootRoll < 5 {
 			scrollTypes := []struct {
 				sType int
 				name  string
@@ -375,12 +368,10 @@ func (g *Game) attackMonster(monster *Monster) {
 			scroll := NewScroll(0, 0, st.sType, st.name, '~', st.color)
 			g.addToInventoryWithStack(scroll)
 			g.addMessage(fmt.Sprintf("С %s выпал %s!", monsterGenitive, st.name))
-			g.logAndSync("LOOT: С %s выпал %s", monster.Name, st.name)
-		} else if lootRoll < 20 { // 15% шанс на ключ (значения 5-19)
+		} else if lootRoll < 20 {
 			key := NewItem(0, 0, "Ключ", ItemTypeKey, 0, 'k', tcell.ColorAqua)
 			g.addToInventoryWithStack(key)
 			g.addMessage(fmt.Sprintf("С %s выпал Ключ!", monsterGenitive))
-			g.logAndSync("LOOT: С %s выпал Ключ", monster.Name)
 		}
 	}
 }
@@ -397,9 +388,15 @@ func (g *Game) monsterAttacksPlayer(monster *Monster) {
 	if actualDamage < 1 {
 		actualDamage = 1
 	}
-	oldHP := g.player.HP
+	
+	//oldHP := g.player.HP
 	g.player.HP -= actualDamage
-	g.logAndSync("DAMAGE_TAKEN: Игрок получает %d урона от %s. HP: %d -> %d", actualDamage, monster.Name, oldHP, g.player.HP)
+	
+	// 🆕 ФИКСИРУЕМ ПРИЧИНУ СМЕРТИ ОТ МОНСТРА
+	if g.player.HP <= 0 {
+		g.deathReason = fmt.Sprintf("Убит: %s", monster.Name)
+	}
+	
 	g.addMessage(fmt.Sprintf("%s атакует вас на %d урона!", monster.Name, actualDamage))
 
 	if monster.IsBoss && monster.BossAbility == BossAbilityDoubleAttack && g.player.HP > 0 {
@@ -407,9 +404,7 @@ func (g *Game) monsterAttacksPlayer(monster *Monster) {
 		if secondDamage < 1 {
 			secondDamage = 1
 		}
-		oldHP2 := g.player.HP
 		g.player.HP -= secondDamage
-		g.logAndSync("DAMAGE_TAKEN: Двойная атака! Игрок получает ещё %d урона. HP: %d -> %d", secondDamage, oldHP2, g.player.HP)
 		g.addMessage(fmt.Sprintf("%s наносит ВТОРОЙ удар на %d урона!", monster.Name, secondDamage))
 	}
 }

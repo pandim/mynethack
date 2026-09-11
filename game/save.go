@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 )
 
 // =============================================================================
@@ -22,6 +23,8 @@ type SaveData struct {
 
 // startNewGame — начинает новую игру с чистого листа
 func (g *Game) startNewGame() {
+	g.deathReason = ""
+	g.amuletFlashUntil = time.Time{}
 	g.depth = 1
 	g.messages = make([]string, 0)
 	g.showInventory = false
@@ -303,7 +306,25 @@ func (g *Game) nextLevel() {
 	g.addMessage(fmt.Sprintf("Вы спустились на уровень %d.", g.depth))
 	g.saveGame() // автосохранение при переходе между уровнями
 }
-
+// nextSecretLevel — перепрыгивает через один уровень (глубина + 2)
+func (g *Game) nextSecretLevel() {
+	g.depth += 2
+	if lvl, ok := g.levels[g.depth]; ok {
+		g.level = lvl
+	} else {
+		g.level = NewLevel(mapWidth, mapHeight, g.depth, g.logger)
+		g.levels[g.depth] = g.level
+	}
+	// Перемещаем игрока на лестницу вверх
+	if g.level.StairsUp {
+		g.player.X = g.level.StairsUpX
+		g.player.Y = g.level.StairsUpY
+	} else {
+		x, y := g.level.FindFreeSpot()
+		g.player.X = x
+		g.player.Y = y
+	}
+}
 // prevLevel — подъём на предыдущий уровень (клавиша <)
 //
 // 🆕 ЭТАП 2: Если уровень уже был посещён, монстры и объекты возрождаются.
