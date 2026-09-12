@@ -44,6 +44,16 @@ func (l *Level) Render(screen tcell.Screen, offsetX, offsetY int) {
 			if !tile.Explored {
 				continue
 			}
+			
+		// 🆕 ОТРИСОВКА СЕКРЕТНОЙ ЛЕСТНИЦЫ
+		// Если на этой клетке находится секретная лестница — рисуем её символом '≈'
+		if l.SecretStairsTargetDepth > 0 && x == l.SecretStairsDownX && y == l.SecretStairsDownY {
+			secretStyle := tcell.StyleDefault.Foreground(tcell.ColorFuchsia).Background(tcell.ColorBlack)
+			screen.SetContent(x+offsetX, y+offsetY, '≈', nil, secretStyle)
+			// Важно: делаем continue, чтобы последующая отрисовка пола не затёрла наш символ
+			continue
+		}
+
 
 			baseStyle := tcell.StyleDefault.Background(tcell.ColorBlack)
 

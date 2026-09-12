@@ -34,35 +34,40 @@ type point struct {
 	X, Y int
 }
 
+// Level — уровень подземелья.
 type Level struct {
-	Width    int
-	Height   int
-	Depth    int
-	Tiles    [][]Tile
-	Monsters []*Monster
-	Items    []*Item
-	
-	Merchants []*Merchant
-	Altars    []*Altar
-	Chests    []*Chest
-	
-	// 🆕 ЛОВУШКИ И СЕКРЕТНЫЕ ЛЕСТНИЦЫ
-	Traps                 []*Trap
-	SecretStairsDownX     int
-	SecretStairsDownY     int
-	SecretStairsTargetDepth int // На какой уровень ведет (обычно Depth + 2)
-	
-	VisitCount int
-	
-	StairsUp    bool
-	StairsDown  bool
-	StairsUpX   int
-	StairsUpY   int
-	StairsDownX int
-	StairsDownY int
-	
-	Rooms  []Room      `json:"Rooms"`
-	logger *log.Logger `json:"-"`
+	Width    int        // ширина карты в клетках
+	Height   int        // высота карты в клетках
+	Depth    int        // глубина уровня (влияет на силу монстров)
+	Tiles    [][]Tile   // двумерная карта клеток
+	Monsters []*Monster // список живых монстров на уровне
+	Items    []*Item    // список предметов на полу
+
+	// ⚠️ НОВЫЕ ПОЛЯ: торговцы, алтари, сундуки
+	Merchants []*Merchant // торговцы (на каждом 5-м уровне)
+	Altars    []*Altar    // алтари (на каждом уровне)
+	Chests    []*Chest    // сундуки (на каждом уровне)
+
+	// 🆕 ЭТАП 2: Счётчик посещений уровня
+	VisitCount int // количество посещений уровня (для удвоения цен)
+
+	// Лестницы
+	StairsUp    bool // есть ли лестница вверх
+	StairsDown  bool // есть ли лестница вниз (всегда есть)
+	StairsUpX   int  // координата X лестницы вверх
+	StairsUpY   int  // координата Y лестницы вверх
+	StairsDownX int  // координата X лестницы вниз
+	StairsDownY int  // координата Y лестницы вниз
+
+	// 🆕 СЕКРЕТНАЯ ЛЕСТНИЦА
+	SecretStairsTargetDepth int // целевая глубина секретной лестницы (0 если нет)
+	SecretStairsDownX       int // координата X секретной лестницы
+	SecretStairsDownY       int // координата Y секретной лестницы
+
+	// ⚠️ ВАЖНО: поле экспортируемое (с большой буквы),
+	// чтобы json.Marshal сохранял его при сериализации.
+	Rooms  []Room      `json:"Rooms"` // список сгенерированных комнат (для FindFreeSpot)
+	logger *log.Logger `json:"-"`     // логгер для отладки (НЕ сохраняется в JSON)
 }
 
 func NewLevel(width, height int, depth int, logger ...*log.Logger) *Level {

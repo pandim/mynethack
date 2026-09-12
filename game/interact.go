@@ -252,7 +252,9 @@ func (g *Game) openChest(chest *Chest) {
 		return
 	}
 
+
 	if chest.IsGolden {
+		g.addMessage("Золотой сундук открыт!") // 🆕 ДОБАВЬТЕ ЭТУ СТРОКУ
 		keyIndex := -1
 		for i, item := range g.player.Inventory {
 			if item != nil && item.Type == ItemTypeKey {

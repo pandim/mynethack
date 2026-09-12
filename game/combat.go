@@ -320,23 +320,29 @@ func (g *Game) attackMonster(monster *Monster) {
 		if monster.Name == "Ловушка" || monster.Name == "Крыса" {
 			deathVerb = "умерла"
 		}
+		
+		// 🆕 ФРАЗА ПРИ СМЕРТИ
 		deathPhrase := getDeathPhrase(monster.Name)
-
+		
 		if monster.Name == FinalBossName {
 			amulet := NewItem(monster.X, monster.Y, "Амулет Бездны", ItemTypeAmulet, 0, '&', tcell.ColorYellow)
 			g.level.Items = append(g.level.Items, amulet)
+			
+			// 🆕 РАЗБИВАЕМ ДЛИННОЕ СООБЩЕНИЕ НА 3 КОРОТКИЕ СТРОКИ
+			g.addMessage("⚔ КОРОЛЬ БЕЗДНЫ ПОВЕРЖЕН!")
 			if deathPhrase != "" {
-				g.addMessage(fmt.Sprintf("⚔ КОРОЛЬ БЕЗДНЫ ПОВЕРЖЕН со словами: \"%s\"!", deathPhrase))
-			} else {
-				g.addMessage("⚔ КОРОЛЬ БЕЗДНЫ ПОВЕРЖЕН!")
+				g.addMessage(fmt.Sprintf("Его последние слова: \"%s\"", deathPhrase))
 			}
-			g.addMessage("Амулет Бездны появился на его месте! Подберите его!")
+			g.addMessage("Амулет Бездны появился на его месте!")
+			
+			g.logAndSync("FINAL_BOSS_KILLED: Амулет Бездны заспавнен на (%d, %d)", monster.X, monster.Y)
 		} else if monster.IsBoss {
+			// 🆕 РАЗБИВАЕМ ДЛИННОЕ СООБЩЕНИЕ ДЛЯ ОБЫЧНЫХ БОССОВ
+			g.addMessage(fmt.Sprintf("⚔ %s ПОВЕРЖЕН!", monster.Name))
 			if deathPhrase != "" {
-				g.addMessage(fmt.Sprintf("⚔ %s ПОВЕРЖЕН со словами: \"%s\"! Путь к лестнице открыт!", monster.Name, deathPhrase))
-			} else {
-				g.addMessage(fmt.Sprintf("⚔ %s ПОВЕРЖЕН! Путь к лестнице открыт!", monster.Name))
+				g.addMessage(fmt.Sprintf("Его последние слова: \"%s\"", deathPhrase))
 			}
+			g.addMessage("Путь к лестнице открыт!")
 		} else if leveledUp {
 			if deathPhrase != "" {
 				g.addMessage(fmt.Sprintf("%s %s со словами: \"%s\"! +%d золота, +%d опыта. Уровень повышен до %d!", monster.Name, deathVerb, deathPhrase, monster.GoldValue, monster.XPValue, g.player.Level))

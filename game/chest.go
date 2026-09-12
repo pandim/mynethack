@@ -2,7 +2,7 @@ package game
 
 import (
 	"math/rand"
-
+	"time"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -73,25 +73,32 @@ func NewGoldenChest(x, y int) *Chest {
 // ОТРИСОВКА СУНДУКА
 // =============================================================================
 //
-// Обычные сундуки отображаются жёлтым цветом.
-// 🆕 Золотые сундуки отображаются золотым цветом (ярче, заметнее).
-// Открытые сундуки отображаются тусклым цветом.
 func (c *Chest) Render(screen tcell.Screen, offsetX, offsetY int) {
 	if c == nil || screen == nil {
 		return
 	}
-	color := tcell.ColorYellow // обычный сундук — жёлтый
+	var color tcell.Color
+	
 	if c.IsGolden {
-		// 🆕 Золотой сундук — золотой цвет
-		// Используем RGB-цвет для точной передачи золотого оттенка.
-		// Если терминал не поддерживает 24-битный цвет, tcell аппроксимирует.
-		color = tcell.NewRGBColor(255, 215, 0) // RGB(255, 215, 0) = золотой
+		if c.Opened {
+			color = tcell.ColorDarkGray // Открытый золотой — тусклый
+		} else {
+			// 🆕 Мигающий желто-красный цвет для закрытого золотого сундука
+			phase := (time.Now().UnixNano() / int64(400*time.Millisecond)) % 2
+			if phase == 0 {
+				color = tcell.ColorYellow
+			} else {
+				color = tcell.ColorRed
+			}
+		}
+	} else {
+		if c.Opened {
+			color = tcell.ColorDarkGray
+		} else {
+			color = tcell.ColorYellow
+		}
 	}
-	if c.Opened {
-		color = tcell.ColorDarkGray // открытый сундук — тусклый
-	}
-	style := tcell.StyleDefault.
-		Foreground(color).
-		Background(tcell.ColorBlack)
+	
+	style := tcell.StyleDefault.Foreground(color).Background(tcell.ColorBlack)
 	screen.SetContent(c.X+offsetX, c.Y+offsetY, '&', nil, style)
 }

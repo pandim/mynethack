@@ -369,6 +369,13 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 			g.helpPage = helpPageControls
 			return
 		case '>':
+			// 🆕 ЖЕСТКАЯ БЛОКИРОВКА СПУСКА НИЖЕ 15 ЭТАЖА
+			if g.depth == FinalBossDepth {
+				g.addMessage("Это самое дно подземелья! Вернитесь на уровень 1 с Амулетом!")
+				return
+			}
+			
+			// 1. Сначала проверяем обычную лестницу
 			if g.level.StairsDown && g.player.X == g.level.StairsDownX && g.player.Y == g.level.StairsDownY {
 				if g.level.HasAliveBoss() {
 					g.addMessage(fmt.Sprintf("%s охраняет лестницу! Сначала победите его!", g.level.GetBossName()))
@@ -377,13 +384,15 @@ func (g *Game) handleMovement(key rune, specialKey tcell.Key) {
 				g.nextLevel()
 				return
 			}
+			
+			// 2. Проверяем СЕКРЕТНУЮ лестницу
 			if g.level.SecretStairsTargetDepth > 0 && g.player.X == g.level.SecretStairsDownX && g.player.Y == g.level.SecretStairsDownY {
 				g.addMessage("Вы нашли секретный проход! Прыжок через уровень.")
-				g.nextSecretLevel()
+				g.nextSecretLevel() 
 				return
 			}
 			g.addMessage("Здесь нет лестницы вниз.")
-			return
+			return		
 		case '<':
 			if g.level.StairsUp && g.player.X == g.level.StairsUpX && g.player.Y == g.level.StairsUpY {
 				g.prevLevel()
