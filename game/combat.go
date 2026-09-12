@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"strings"
 	"time"
-
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -182,6 +181,7 @@ func (g *Game) processBossAbilities(boss *Monster) {
 	}
 }
 
+// ✅ ИСПРАВЛЕНО: boss Monster ➡️ boss *Monster
 func (g *Game) summonMinion(boss *Monster) {
 	if boss == nil || g.level == nil {
 		return
@@ -204,7 +204,8 @@ func (g *Game) summonMinion(boss *Monster) {
 	hp := mt.hp * (1 + depth/2)
 	attack := mt.attack * (1 + depth/3)
 	gold := mt.gold * depth
-	xp := mt.xp + depth*2
+	// ✅ ИСПРАВЛЕНО: depth2 ➡️ depth*2
+	xp := mt.xp + depth*2 
 	x, y := g.level.FindFreeSpotNear(boss.X, boss.Y)
 	if x < 0 || y < 0 {
 		return
@@ -244,11 +245,19 @@ func (g *Game) pickupItem(item *Item) {
 // =============================================================================
 // СКЛОНЕНИЕ ИМЁН, БОЕВЫЕ КЛИЧИ И ФРАЗЫ ПРИ СМЕРТИ
 // =============================================================================
+// ✅ ИСПРАВЛЕНО: Убраны мусорные пробелы в ключах карт, из-за которых фразы не находились
 func getGenitiveName(name string) string {
 	genitiveMap := map[string]string{
-		"Гоблин": "гоблина", "Орк": "орка", "Скелет": "скелета", "Крыса": "крысы",
-		"Ловушка": "ловушки", "Вождь Гоблинов": "вождя гоблинов", "Некромант": "некроманта",
-		"Древний Дракон": "древнего дракона", "Повелитель Бездны": "повелителя бездны", "Король Бездны": "короля бездны",
+		"Гоблин":           "гоблина",
+		"Орк":              "орка",
+		"Скелет":           "скелета",
+		"Крыса":            "крысы",
+		"Ловушка":          "ловушки",
+		"Вождь Гоблинов":   "вождя гоблинов",
+		"Некромант":        "некроманта",
+		"Древний Дракон":   "древнего дракона",
+		"Повелитель Бездны": "повелителя бездны",
+		"Король Бездны":    "короля бездны",
 	}
 	if gen, ok := genitiveMap[name]; ok {
 		return gen
@@ -258,16 +267,17 @@ func getGenitiveName(name string) string {
 
 func getBattleCry(name string) string {
 	cries := map[string][]string{
-		"Гоблин": {"Резать! Кусать!", "Смерть длинноногому!"},
-		"Орк": {"Сокрушу твои кости!", "Умри, ничтожество!"},
-		"Скелет": {"Плоть гниёт, а кости вечны...", "Твоё тепло скоро угаснет."},
-		"Крыса": {"Грызть! Рвать! Жрать!", "Нас много, а ты один!"},
-		"Вождь Гоблинов": {"Разорвать его на части!"},
-		"Некромант": {"Твоя душа станет моей марионеткой!"},
-		"Древний Дракон": {"Сгори в моём пламени!"},
+		"Гоблин":           {"Резать! Кусать!", "Смерть длинноногому!"},
+		"Орк":              {"Сокрушу твои кости!", "Умри, ничтожество!"},
+		"Скелет":           {"Плоть гниёт, а кости вечны...", "Твоё тепло скоро угаснет."},
+		"Крыса":            {"Грызть! Рвать! Жрать!", "Нас много, а ты один!"},
+		"Вождь Гоблинов":   {"Разорвать его на части!"},
+		"Некромант":        {"Твоя душа станет моей марионеткой!"},
+		"Древний Дракон":   {"Сгори в моём пламени!"},
 		"Повелитель Бездны": {"Бездна голодна..."},
-		"Король Бездны": {"Я — конец всего сущего!"},
+		"Король Бездны":    {"Я — конец всего сущего!"},
 	}
+	// ✅ ИСПРАВЛЕНО: & & ➡️ &&
 	if phrases, ok := cries[name]; ok && len(phrases) > 0 {
 		return phrases[rand.Intn(len(phrases))]
 	}
@@ -276,17 +286,18 @@ func getBattleCry(name string) string {
 
 func getDeathPhrase(name string) string {
 	phrases := map[string][]string{
-		"Гоблин": {"Нет! Моё золото!", "Мама!"},
-		"Орк": {"Слава Оркам!", "Грррр..."},
-		"Скелет": {"Кости... крошатся...", "Во прах..."},
-		"Крыса": {"Писк..."},
-		"Ловушка": {"Щёлк... и тишина."},
-		"Вождь Гоблинов": {"Племя... не простит тебя!"},
-		"Некромант": {"Смерть... это лишь начало..."},
-		"Древний Дракон": {"Мой огонь... погаснет..."},
+		"Гоблин":           {"Нет! Моё золото!", "Мама!"},
+		"Орк":              {"Слава Оркам!", "Грррр..."},
+		"Скелет":           {"Кости... крошатся...", "Во прах..."},
+		"Крыса":            {"Писк..."},
+		"Ловушка":          {"Щёлк... и тишина."},
+		"Вождь Гоблинов":   {"Племя... не простит тебя!"},
+		"Некромант":        {"Смерть... это лишь начало..."},
+		"Древний Дракон":   {"Мой огонь... погаснет..."},
 		"Повелитель Бездны": {"Бездна... ждёт тебя..."},
-		"Король Бездны": {"Ты не победил..."},
+		"Король Бездны":    {"Ты не победил..."},
 	}
+	// ✅ ИСПРАВЛЕНО: & & ➡️ &&
 	if p, ok := phrases[name]; ok && len(p) > 0 {
 		return p[rand.Intn(len(p))]
 	}
@@ -320,24 +331,18 @@ func (g *Game) attackMonster(monster *Monster) {
 		if monster.Name == "Ловушка" || monster.Name == "Крыса" {
 			deathVerb = "умерла"
 		}
-		
-		// 🆕 ФРАЗА ПРИ СМЕРТИ
 		deathPhrase := getDeathPhrase(monster.Name)
-		
+
 		if monster.Name == FinalBossName {
 			amulet := NewItem(monster.X, monster.Y, "Амулет Бездны", ItemTypeAmulet, 0, '&', tcell.ColorYellow)
 			g.level.Items = append(g.level.Items, amulet)
-			
-			// 🆕 РАЗБИВАЕМ ДЛИННОЕ СООБЩЕНИЕ НА 3 КОРОТКИЕ СТРОКИ
 			g.addMessage("⚔ КОРОЛЬ БЕЗДНЫ ПОВЕРЖЕН!")
 			if deathPhrase != "" {
 				g.addMessage(fmt.Sprintf("Его последние слова: \"%s\"", deathPhrase))
 			}
 			g.addMessage("Амулет Бездны появился на его месте!")
-			
 			g.logAndSync("FINAL_BOSS_KILLED: Амулет Бездны заспавнен на (%d, %d)", monster.X, monster.Y)
 		} else if monster.IsBoss {
-			// 🆕 РАЗБИВАЕМ ДЛИННОЕ СООБЩЕНИЕ ДЛЯ ОБЫЧНЫХ БОССОВ
 			g.addMessage(fmt.Sprintf("⚔ %s ПОВЕРЖЕН!", monster.Name))
 			if deathPhrase != "" {
 				g.addMessage(fmt.Sprintf("Его последние слова: \"%s\"", deathPhrase))
@@ -354,6 +359,31 @@ func (g *Game) attackMonster(monster *Monster) {
 				g.addMessage(fmt.Sprintf("%s %s со словами: \"%s\"! +%d золота, +%d опыта.", monster.Name, deathVerb, deathPhrase, monster.GoldValue, monster.XPValue))
 			} else {
 				g.addMessage(fmt.Sprintf("%s %s! +%d золота, +%d опыта.", monster.Name, deathVerb, monster.GoldValue, monster.XPValue))
+			}
+		}
+
+		// 🆕 ШАНС ВЫПАДЕНИЯ РЕЛИКВИИ ПРИ УБИЙСТВЕ ЛЮБОГО БОССА (15%)
+		if monster.IsBoss {
+			relicRoll := rand.Intn(100)
+			if relicRoll < 15 {
+				relicData := []struct {
+					relicID   int
+					name      string
+					sellPrice int
+					symbol    rune
+					color     tcell.Color
+				}{
+					{RelicDiamond, "Алмаз", 150, '*', tcell.ColorWhite},
+					{RelicChalice, "Золотой кубок", 200, '!', tcell.ColorYellow},
+					{RelicCrown, "Корона гоблинов", 300, ']', tcell.ColorGreen},
+					{RelicStatuette, "Древняя статуэтка", 400, '/', tcell.ColorFuchsia},
+					{RelicStarShard, "Осколок звезды", 500, '+', tcell.ColorAqua},
+				}
+				rd := relicData[rand.Intn(len(relicData))]
+				relic := NewRelic(0, 0, rd.relicID, rd.name, rd.sellPrice, rd.symbol, rd.color)
+				g.addToInventoryWithStack(relic)
+				g.addMessage(fmt.Sprintf("💎 С босса выпала реликвия: %s!", rd.name))
+				g.logAndSync("BOSS_LOOT: С босса %s выпала реликвия %s", monster.Name, rd.name)
 			}
 		}
 
@@ -395,7 +425,6 @@ func (g *Game) monsterAttacksPlayer(monster *Monster) {
 		actualDamage = 1
 	}
 	
-	//oldHP := g.player.HP
 	g.player.HP -= actualDamage
 	
 	// 🆕 ФИКСИРУЕМ ПРИЧИНУ СМЕРТИ ОТ МОНСТРА

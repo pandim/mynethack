@@ -117,13 +117,13 @@ func (g *Game) renderStartMenu() {
 	}
 	g.screen.Clear()
 	asciiTitle := []string{
-		"                                                                               ",
-		"███╗░░██╗███████╗████████╗██╗░░██╗░█████╗░░█████╗░██╗░░██╗░░░░░██████╗░░█████╗░",
-		"████╗░██║██╔════╝╚══██╔══╝██║░░██║██╔══██╗██╔══██╗██║░██╔╝░░░░██╔════╝░██╔══██╗",
-		"██╔██╗██║█████╗░░░░░██║░░░███████║███████║██║░░╚═╝█████═╝░███╗██║░░██╗░██║░░██║",
-		"██║╚████║██╔══╝░░░░░██║░░░██╔══██║██╔══██║██║░░██╗██╔═██╗░╚══╝██║░░╚██╗██║░░██║",
-		"██║░╚███║███████╗░░░██║░░░██║░░██║██║░░██║╚█████╔╝██║░╚██╗░░░░╚██████╔╝╚█████╔╝",
-		"╚═╝░░╚══╝╚══════╝░░░╚═╝░░░╚═╝░░╚═╝╚═╝░░╚═╝░╚════╝░╚═╝░░╚═╝░░░░░╚═════╝░░╚════╝░",
+		"                                                                                ",
+		"███╗░░██╗███████╗████████╗██╗░░██╗░█████╗░░█████╗░██╗░░██╗░░░░░██████╗░░█████╗░ ",
+		"████╗░██║██╔════╝╚══██╔══╝██║░░██║██╔══██╗██╔══██╗██║░██╔╝░░░░██╔════╝░██╔══██╗ ",
+		"██╔██╗██║█████╗░░░░░██║░░░███████║███████║██║░░╚═╝█████═╝░███╗██║░░██╗░██║░░██║ ",
+		"██║╚████║██╔══╝░░░░░██║░░░██╔══██║██╔══██║██║░░██╗██╔═██╗░╚══╝██║░░╚██╗██║░░██║ ",
+		"██║░╚███║███████╗░░░██║░░░██║░░██║██║░░██║╚█████╔╝██║░╚██╗░░░░╚██████╔╝╚█████╔╝ ",
+		"╚═╝░░╚══╝╚══════╝░░░╚═╝░░░╚═╝░░╚═╝╚═╝░░╚═╝░╚════╝░╚═╝░░╚═╝░░░░░╚═════╝░░╚════╝░ ",
 	}
 	titleStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
 	style := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
@@ -474,19 +474,39 @@ func (g *Game) renderPopup() {
 	g.drawRawString(boxX+(boxWidth-stringWidth(g.popupMessage))/2, boxY+2, g.popupMessage, textStyle)
 }
 
+// =============================================================================
+// 🆕 ЭКРАН ПОБЕДЫ (С ПРОВЕРКОЙ НА ИДЕАЛЬНУЮ ПОБЕДУ)
+// =============================================================================
 func (g *Game) renderVictoryScreen() {
 	if g.screen == nil || g.player == nil {
 		return
 	}
 	g.screen.Clear()
+	
 	titleStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
 	style := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
 	goldStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
 	greenStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen).Background(tcell.ColorBlack)
-	g.drawCentered(4, "★ ПОБЕДА! ★", titleStyle)
-	g.drawCentered(6, "Вы вернулись на поверхность с Амулетом Бездны!", style)
-	g.drawCentered(9, fmt.Sprintf("Глубина: %d | Золото: %d | Уровень: %d", g.depth, g.player.Gold, g.player.Level), goldStyle)
-	g.drawCentered(12, "Подземелье позади. Вы — легенда!", greenStyle)
+	perfectStyle := tcell.StyleDefault.Foreground(tcell.ColorFuchsia).Background(tcell.ColorBlack) // 🆕 Для идеальной победы
+
+	// 🆕 ПРОВЕРКА НА ИДЕАЛЬНУЮ ПОБЕДУ (Сбор всех 5 реликвий)
+	relicCount := g.player.CountRelics()
+	isPerfect := relicCount == 5
+
+	if isPerfect {
+		g.drawCentered(4, "★ ИДЕАЛЬНАЯ ПОБЕДА! ★", perfectStyle)
+		g.drawCentered(6, "Вы вернулись с Амулетом и всеми 5 Реликвиями!", perfectStyle)
+		g.drawCentered(8, "Вы — истинная легенда подземелья!", greenStyle)
+	} else {
+		g.drawCentered(4, "★ ПОБЕДА! ★", titleStyle)
+		g.drawCentered(6, "Вы вернулись на поверхность с Амулетом Бездны!", style)
+	}
+
+	// 🆕 Добавляем счетчик реликвий в итоговую статистику
+	statsMsg := fmt.Sprintf("Глубина: %d | Золото: %d | Уровень: %d | Реликвии: %d/5", g.depth, g.player.Gold, g.player.Level, relicCount)
+	g.drawCentered(10, statsMsg, goldStyle)
+
+	g.drawCentered(14, "Подземелье позади.", style)
 	g.drawCentered(18, "Нажмите любую клавишу для выхода", style)
 	g.screen.Show()
 }

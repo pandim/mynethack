@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"math/rand/v2"
+	
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -252,9 +253,8 @@ func (g *Game) openChest(chest *Chest) {
 		return
 	}
 
-
 	if chest.IsGolden {
-		g.addMessage("Золотой сундук открыт!") // 🆕 ДОБАВЬТЕ ЭТУ СТРОКУ
+		g.addMessage("Золотой сундук открыт!")
 		keyIndex := -1
 		for i, item := range g.player.Inventory {
 			if item != nil && item.Type == ItemTypeKey {
@@ -294,7 +294,8 @@ func (g *Game) openChest(chest *Chest) {
 		g.logAndSync("CHEST: Спавнен монстр-ловушка на (%d, %d)", chest.X, chest.Y)
 	case "golden":
 		roll := rand.IntN(100)
-		if roll < 50 {
+		// 🆕 УВЕЛИЧЕНЫ ВЕСА: Реликвия 70%, Свиток 20%, Золото 10%
+		if roll < 70 { 
 			relicData := []struct {
 				relicID   int
 				name      string
@@ -313,7 +314,7 @@ func (g *Game) openChest(chest *Chest) {
 			g.player.Inventory = append(g.player.Inventory, relic)
 			g.addMessage(fmt.Sprintf("В золотом сундуке найдена реликвия: %s!", rd.name))
 			g.logAndSync("CHEST: Найдена реликвия %s в золотом сундуке", rd.name)
-		} else if roll < 80 {
+		} else if roll < 90 {
 			// 🆕 ВИЗУАЛ СВИТКОВ: символ '~' и уникальные цвета
 			scrollData := []struct {
 				scrollType int

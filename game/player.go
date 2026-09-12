@@ -43,7 +43,7 @@ func (p *Player) Move(dx, dy int) {
 	if p == nil { return }
 	p.X += dx
 	p.Y += dy
-	p.Hunger += 2 // Расход сытости 2 за ход
+	p.Hunger += 1 // Расход сытости 2 за ход
 	
 	if p.logger != nil {
 		p.logger.Printf("MOVE: Игрок переместился на (%d, %d). Голод: %d", p.X, p.Y, p.Hunger)
