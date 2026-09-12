@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strings"
 	"time"
+
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -55,7 +56,6 @@ func (g *Game) checkPlayerDeath() bool {
 	if g.state == StateDeathMenu {
 		return true
 	}
-	
 	// 🆕 УСТАНАВЛИВАЕМ ПРИЧИНУ СМЕРТИ
 	if g.deathReason == "" {
 		if g.player.Hunger >= 1000 {
@@ -64,7 +64,6 @@ func (g *Game) checkPlayerDeath() bool {
 			g.deathReason = "Погиб в подземелье"
 		}
 	}
-	
 	g.player.HP = 0
 	g.logAndSync("GAME_OVER: Игрок погиб. Причина: %s", g.deathReason)
 	g.state = StateDeathMenu
@@ -78,7 +77,6 @@ func (g *Game) processTurn(dx, dy int) {
 	if g.player.HP <= 0 {
 		return
 	}
-
 	if dx != 0 || dy != 0 {
 		newX := g.player.X + dx
 		newY := g.player.Y + dy
@@ -94,7 +92,6 @@ func (g *Game) processTurn(dx, dy int) {
 			if g.checkPlayerDeath() {
 				return
 			}
-			
 			// 🆕 ПРОВЕРКА ЛОВУШЕК
 			for _, trap := range g.level.Traps {
 				if trap != nil && !trap.Triggered && trap.X == g.player.X && trap.Y == g.player.Y {
@@ -110,7 +107,6 @@ func (g *Game) processTurn(dx, dy int) {
 					break
 				}
 			}
-			
 			if item := g.level.GetItemAt(g.player.X, g.player.Y); item != nil {
 				g.logAndSync("ITEM: Игрок наступает на %s", item.Name)
 				g.pickupItem(item)
@@ -120,7 +116,6 @@ func (g *Game) processTurn(dx, dy int) {
 			return
 		}
 	}
-
 	for i := len(g.level.Monsters) - 1; i >= 0; i-- {
 		if g.checkPlayerDeath() {
 			break
@@ -181,7 +176,6 @@ func (g *Game) processBossAbilities(boss *Monster) {
 	}
 }
 
-// ✅ ИСПРАВЛЕНО: boss Monster ➡️ boss *Monster
 func (g *Game) summonMinion(boss *Monster) {
 	if boss == nil || g.level == nil {
 		return
@@ -204,8 +198,7 @@ func (g *Game) summonMinion(boss *Monster) {
 	hp := mt.hp * (1 + depth/2)
 	attack := mt.attack * (1 + depth/3)
 	gold := mt.gold * depth
-	// ✅ ИСПРАВЛЕНО: depth2 ➡️ depth*2
-	xp := mt.xp + depth*2 
+	xp := mt.xp + depth*2
 	x, y := g.level.FindFreeSpotNear(boss.X, boss.Y)
 	if x < 0 || y < 0 {
 		return
@@ -245,7 +238,6 @@ func (g *Game) pickupItem(item *Item) {
 // =============================================================================
 // СКЛОНЕНИЕ ИМЁН, БОЕВЫЕ КЛИЧИ И ФРАЗЫ ПРИ СМЕРТИ
 // =============================================================================
-// ✅ ИСПРАВЛЕНО: Убраны мусорные пробелы в ключах карт, из-за которых фразы не находились
 func getGenitiveName(name string) string {
 	genitiveMap := map[string]string{
 		"Гоблин":           "гоблина",
@@ -277,7 +269,6 @@ func getBattleCry(name string) string {
 		"Повелитель Бездны": {"Бездна голодна..."},
 		"Король Бездны":    {"Я — конец всего сущего!"},
 	}
-	// ✅ ИСПРАВЛЕНО: & & ➡️ &&
 	if phrases, ok := cries[name]; ok && len(phrases) > 0 {
 		return phrases[rand.Intn(len(phrases))]
 	}
@@ -297,7 +288,6 @@ func getDeathPhrase(name string) string {
 		"Повелитель Бездны": {"Бездна... ждёт тебя..."},
 		"Король Бездны":    {"Ты не победил..."},
 	}
-	// ✅ ИСПРАВЛЕНО: & & ➡️ &&
 	if p, ok := phrases[name]; ok && len(p) > 0 {
 		return p[rand.Intn(len(p))]
 	}
@@ -327,6 +317,7 @@ func (g *Game) attackMonster(monster *Monster) {
 		g.level.RemoveMonster(monster)
 		g.player.Gold += monster.GoldValue
 		leveledUp := g.player.GainXP(monster.XPValue)
+
 		deathVerb := "умер"
 		if monster.Name == "Ловушка" || monster.Name == "Крыса" {
 			deathVerb = "умерла"
@@ -362,10 +353,10 @@ func (g *Game) attackMonster(monster *Monster) {
 			}
 		}
 
-		// 🆕 ШАНС ВЫПАДЕНИЯ РЕЛИКВИИ ПРИ УБИЙСТВЕ ЛЮБОГО БОССА (15%)
+		// 🆕 ШАНС ВЫПАДЕНИЯ РЕЛИКВИИ ПРИ УБИЙСТВЕ ЛЮБОГО БОССА (60%)
 		if monster.IsBoss {
 			relicRoll := rand.Intn(100)
-			if relicRoll < 15 {
+			if relicRoll < 60 {
 				relicData := []struct {
 					relicID   int
 					name      string
@@ -424,16 +415,12 @@ func (g *Game) monsterAttacksPlayer(monster *Monster) {
 	if actualDamage < 1 {
 		actualDamage = 1
 	}
-	
 	g.player.HP -= actualDamage
-	
 	// 🆕 ФИКСИРУЕМ ПРИЧИНУ СМЕРТИ ОТ МОНСТРА
 	if g.player.HP <= 0 {
 		g.deathReason = fmt.Sprintf("Убит: %s", monster.Name)
 	}
-	
 	g.addMessage(fmt.Sprintf("%s атакует вас на %d урона!", monster.Name, actualDamage))
-
 	if monster.IsBoss && monster.BossAbility == BossAbilityDoubleAttack && g.player.HP > 0 {
 		secondDamage := monsterDamage - g.player.Defense
 		if secondDamage < 1 {

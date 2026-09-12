@@ -295,7 +295,7 @@ func (g *Game) openChest(chest *Chest) {
 	case "golden":
 		roll := rand.IntN(100)
 		// 🆕 УВЕЛИЧЕНЫ ВЕСА: Реликвия 70%, Свиток 20%, Золото 10%
-		if roll < 70 { 
+		if roll < 75 { 
 			relicData := []struct {
 				relicID   int
 				name      string
@@ -314,7 +314,7 @@ func (g *Game) openChest(chest *Chest) {
 			g.player.Inventory = append(g.player.Inventory, relic)
 			g.addMessage(fmt.Sprintf("В золотом сундуке найдена реликвия: %s!", rd.name))
 			g.logAndSync("CHEST: Найдена реликвия %s в золотом сундуке", rd.name)
-		} else if roll < 90 {
+		} else if roll < 95 {
 			// 🆕 ВИЗУАЛ СВИТКОВ: символ '~' и уникальные цвета
 			scrollData := []struct {
 				scrollType int
